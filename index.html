@@ -364,6 +364,12 @@
     return (m && m[0]) ? m[0] : trimmed;
   }
 
+  var BULK_QUOTE_SITES = [
+    { name: "SUUMO引越し見積もり", url: "https://hikkoshi.suumo.jp/" },
+    { name: "ズバット引越し比較", url: "https://www.zba.jp/hikkoshi/" },
+    { name: "引越し侍", url: "https://hikkoshizamurai.jp/" }
+  ];
+
   function buildSearchUrl(query, keyword) {
     return "https://www.google.com/search?q=" + encodeURIComponent(query + " " + keyword);
   }
@@ -449,6 +455,23 @@
       householdLink.textContent = householdInfo.label;
       linksWrap.appendChild(householdLink);
     }
+
+    var bulkHint = document.createElement("div");
+    bulkHint.className = "hint";
+    bulkHint.style.width = "100%";
+    bulkHint.style.margin = "8px 0 0";
+    bulkHint.textContent = "業者ごとに探す手間を省きたい場合は、下記の一括見積もりサイトで住所を1回入力すると複数社からまとめて見積もりが届きます(各社サイトへの入力が必要です):";
+    linksWrap.appendChild(bulkHint);
+
+    BULK_QUOTE_SITES.forEach(function (site) {
+      var siteLink = document.createElement("a");
+      siteLink.className = "search-link";
+      siteLink.target = "_blank";
+      siteLink.rel = "noopener noreferrer";
+      siteLink.href = site.url;
+      siteLink.textContent = site.name + "で一括見積もり";
+      linksWrap.appendChild(siteLink);
+    });
   }
 
   // ---------- Quotes ----------
