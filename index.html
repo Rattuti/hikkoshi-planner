@@ -163,12 +163,22 @@
       <label>業者名<input type="text" id="quoteCompany" placeholder="例: ○○引越センター"></label>
       <label>見積額(円)<input type="number" id="quoteAmount" placeholder="例: 65000"></label>
       <label>取得日<input type="date" id="quoteDate"></label>
+      <label>丁寧さ評価(1〜5・任意)
+        <select id="quoteCare">
+          <option value="">未評価</option>
+          <option value="1">1(粗い)</option>
+          <option value="2">2</option>
+          <option value="3">3(普通)</option>
+          <option value="4">4</option>
+          <option value="5">5(非常に丁寧)</option>
+        </select>
+      </label>
       <label>備考<input type="text" id="quoteNote" placeholder="任意"></label>
     </div>
     <button type="button" id="addQuoteBtn">見積もりを追加</button>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>業者名</th><th>見積額</th><th>取得日</th><th>備考</th><th></th></tr></thead>
+        <thead><tr><th>業者名</th><th>見積額</th><th>丁寧さ</th><th>取得日</th><th>備考</th><th></th></tr></thead>
         <tbody id="quoteBody"></tbody>
       </table>
     </div>
@@ -449,11 +459,12 @@
       company: row["業者名"] || "",
       amount: typeof row["見積額"] === "number" ? row["見積額"] : null,
       date: row["date:取得日:start"] || "",
+      care: typeof row["丁寧さ"] === "number" ? row["丁寧さ"] : null,
       note: row["備考"] || ""
     };
   }
   function quoteToProps(q) {
-    var props = { "業者名": q.company, "見積額": q.amount, "備考": q.note || "" };
+    var props = { "業者名": q.company, "見積額": q.amount, "丁寧さ": (q.care || q.care === 0) ? q.care : null, "備考": q.note || "" };
     if (q.date) props["date:取得日:start"] = q.date;
     return props;
   }
@@ -469,6 +480,7 @@
     var sorted = state.quotes.slice().sort(function (a, b) { return (a.amount || Infinity) - (b.amount || Infinity); });
     document.getElementById("quoteEmpty").style.display = sorted.length ? "none" : "block";
     var cheapest = sorted.length ? sorted[0].amount : null;
+    var bestCare = sorted.reduce(function (m, q) { return (q.care && (!m || q.care > m)) ? q.care : m; }, null);
 
     sorted.forEach(function (q) {
       var tr = document.createElement("tr");
@@ -482,6 +494,13 @@
         tag.textContent = "最安";
         tdCompany.appendChild(tag);
       }
+      if (bestCare !== null && q.care === bestCare) {
+        var careTag = document.createElement("span");
+        careTag.className = "cheapest-tag";
+        careTag.style.marginLeft = "4px";
+        careTag.textContent = "最も丁寧";
+        tdCompany.appendChild(careTag);
+      }
 
       var tdAmount = document.createElement("td");
       tdAmount.setAttribute("data-label", "見積額");
@@ -493,6 +512,10 @@
         diff.textContent = "(+" + formatYen(q.amount - cheapest) + ")";
         tdAmount.appendChild(diff);
       }
+
+      var tdCare = document.createElement("td");
+      tdCare.setAttribute("data-label", "丁寧さ");
+      tdCare.textContent = q.care ? "★".repeat(q.care) + "☆".repeat(5 - q.care) : "未評価";
 
       var tdDate = document.createElement("td");
       tdDate.setAttribute("data-label", "取得日");
@@ -514,7 +537,7 @@
       });
       tdRm.appendChild(rmBtn);
 
-      tr.appendChild(tdCompany); tr.appendChild(tdAmount); tr.appendChild(tdDate); tr.appendChild(tdNote); tr.appendChild(tdRm);
+      tr.appendChild(tdCompany); tr.appendChild(tdAmount); tr.appendChild(tdCare); tr.appendChild(tdDate); tr.appendChild(tdNote); tr.appendChild(tdRm);
       body.appendChild(tr);
     });
   }
@@ -1148,16 +1171,19 @@
       var company = document.getElementById("quoteCompany").value.trim();
       var amountRaw = document.getElementById("quoteAmount").value;
       if (!company || amountRaw === "") return;
+      var careRaw = document.getElementById("quoteCare").value;
       var q = {
         id: "temp-" + (nextTempId++), notionId: null,
         company: company, amount: parseFloat(amountRaw),
         date: document.getElementById("quoteDate").value || "",
+        care: careRaw === "" ? null : parseInt(careRaw, 10),
         note: document.getElementById("quoteNote").value.trim()
       };
       state.quotes.push(q);
       document.getElementById("quoteCompany").value = "";
       document.getElementById("quoteAmount").value = "";
       document.getElementById("quoteDate").value = "";
+      document.getElementById("quoteCare").value = "";
       document.getElementById("quoteNote").value = "";
       renderAll();
       if (NOTION_ENABLED) {
