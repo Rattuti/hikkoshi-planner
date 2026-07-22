@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>引っ越しプランナー</title>
+<style>
+  :root {
+    --bg: #f4f7f7;
+    --panel: #ffffff;
+    --border: #dde6e6;
+    --text: #22302f;
+    --muted: #6b7f7f;
+    --accent: #2f7d8c;
+    --accent-dark: #245f6b;
+    --keep: #4f8f6a;
+    --consider: #c99a3f;
+    --letgo: #b3546b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); margin: 0 0 12px; font-size: 0.9rem; }
+  .layout { display: grid; grid-template-columns: 1fr; gap: 16px; max-width: 1040px; margin: 0 auto; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+  .panel h2 { font-size: 1rem; margin: 0 0 4px; }
+  .panel .desc { font-size: 0.82rem; color: var(--muted); margin: 0 0 14px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .row.between { justify-content: space-between; }
+  select, input[type=text], input[type=number], input[type=date], button {
+    font: inherit;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #fff;
+  }
+  button { cursor: pointer; background: var(--accent); color: #fff; border: none; }
+  button:hover { background: var(--accent-dark); }
+  button.secondary { background: #fff; color: var(--text); border: 1px solid var(--border); }
+  .hint { font-size: 0.8rem; color: var(--muted); margin-top: 8px; }
+  .hint.sync-error { color: var(--letgo); }
+  .search-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 6px; font-size: 0.85rem;
+    background: var(--bg); border: 1px solid var(--border); color: var(--accent-dark);
+    text-decoration: none; font-weight: 600;
+  }
+  .search-link:hover { border-color: var(--accent); }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 4px; }
+  .stat { background: var(--bg); border-radius: 8px; padding: 12px 14px; }
+  .stat .label { font-size: 0.78rem; color: var(--muted); }
+  .stat .value { font-size: 1.2rem; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+  .table-wrap { max-height: 420px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
+  td.name-cell { white-space: normal; max-width: 180px; font-weight: 500; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 999px; font-size: 0.78rem; color: #fff; font-weight: 600;
+  }
+  .status-select { font-size: 0.8rem; padding: 4px 6px; }
+  .rm-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.85rem; padding: 2px 6px; }
+  .rm-btn:hover { color: var(--letgo); }
+  .empty { color: var(--muted); text-align: center; padding: 24px 0; font-size: 0.88rem; }
+  .cheapest-tag { font-size: 0.7rem; color: var(--keep); font-weight: 700; margin-left: 4px; }
+
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 10px; }
+  .form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 0.78rem; color: var(--muted); }
+  .form-grid select, .form-grid input { width: 100%; }
+
+  .expand-btn { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 0.8rem; padding: 2px 4px; white-space: nowrap; }
+  .expand-btn:hover { text-decoration: underline; }
+  .detail-row td { background: var(--bg); padding: 12px 16px; }
+  .criteria-list { display: flex; flex-direction: column; gap: 6px; }
+  .criteria-item { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; }
+  .criteria-item input[type=checkbox] { accent-color: var(--keep); flex-shrink: 0; width: 16px; height: 16px; }
+  .score-bar-track { height: 8px; border-radius: 999px; background: var(--border); overflow: hidden; width: 70px; }
+  .score-bar-fill { height: 100%; border-radius: 999px; }
+
+  canvas { max-width: 100%; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; font-size: 0.8rem; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .swatch { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+
+  .room-list { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; }
+  .room-tag { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 0.82rem; }
+
+  /* mobile: tables become stacked cards */
+  @media (max-width: 600px) {
+    body { padding: 14px; }
+    .table-wrap { overflow: visible; max-height: none; border: none; }
+    table, thead, tbody { display: block; width: 100%; }
+    thead { display: none; }
+    tr { display: block; }
+    tbody tr:not(.detail-row) {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+    }
+    td { display: block; width: 100%; border-bottom: none; padding: 6px 0; white-space: normal; }
+    td.name-cell { font-size: 1rem; font-weight: 700; max-width: none; padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+    td[data-label]::before {
+      content: attr(data-label);
+      display: block;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+    td select, td input { width: 100%; box-sizing: border-box; }
+    .status-select, button { min-height: 40px; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <div>
+    <h1>引っ越しプランナー</h1>
+    <p class="subtitle">業者比較・住み心地判定・部屋の簡易3D表示・割引補助チェックをまとめて管理します。</p>
+    <p class="hint" id="syncStatus" style="margin-top:0;"></p>
+  </div>
+
+  <div class="panel">
+    <h2>住所</h2>
+    <p class="desc">引っ越し先の住所を入れると、その地域の補助金・引っ越し業者情報を調べる検索リンクを生成します(リンク先の内容はご自身でご確認ください)。</p>
+    <div class="form-grid">
+      <label>現住所<input type="text" id="currentAddress" placeholder="例: 東京都○○区○○1-2-3"></label>
+      <label>引っ越し先住所<input type="text" id="destAddress" placeholder="例: 神奈川県○○市○○4-5-6"></label>
+    </div>
+    <div class="hint" id="addressRegionHint" style="margin-top:0;"></div>
+    <div class="row" id="addressSearchLinks" style="margin-top:8px;"></div>
+  </div>
+
+  <div class="panel">
+    <h2>業者見積もり比較</h2>
+    <p class="desc">見積もりを取るたびに記録すると、最安値や差額がすぐ分かります。</p>
+    <div class="form-grid">
+      <label>業者名<input type="text" id="quoteCompany" placeholder="例: ○○引越センター"></label>
+      <label>見積額(円)<input type="number" id="quoteAmount" placeholder="例: 65000"></label>
+      <label>取得日<input type="date" id="quoteDate"></label>
+      <label>備考<input type="text" id="quoteNote" placeholder="任意"></label>
+    </div>
+    <button type="button" id="addQuoteBtn">見積もりを追加</button>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>業者名</th><th>見積額</th><th>取得日</th><th>備考</th><th></th></tr></thead>
+        <tbody id="quoteBody"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="quoteEmpty">まだ見積もりが登録されていません</div>
+  </div>
+
+  <div class="panel">
+    <h2>費用の目安グラフ</h2>
+    <p class="desc">上段は一般的な季節傾向の目安(参考情報・実際の価格ではありません)。下段は、あなたが記録した実際の見積もりの推移です。</p>
+    <div class="hint" style="margin-top:0;">月別の混雑・価格帯の目安(相対レベル、1〜5)</div>
+    <canvas id="seasonChart" height="140"></canvas>
+    <div class="hint">あなたの見積もり実績の推移(業者ごとに色分け)</div>
+    <canvas id="quoteChart" height="180"></canvas>
+    <div class="legend" id="quoteChartLegend"></div>
+  </div>
+
+  <div class="panel">
+    <h2>候補物件・住み心地判定</h2>
+    <p class="desc">登録した候補同士の相対比較によるスコアです(絶対的な良し悪しの判定ではありません)。</p>
+    <div class="form-grid">
+      <label>物件名<input type="text" id="propName" placeholder="例: ○○マンション101"></label>
+      <label>家賃(円)<input type="number" id="propRent" placeholder="例: 85000"></label>
+      <label>広さ(m²)<input type="number" id="propSize" placeholder="例: 45"></label>
+      <label>築年数(年)<input type="number" id="propAge" placeholder="例: 10"></label>
+      <label>駅徒歩(分)<input type="number" id="propStation" placeholder="例: 8"></label>
+      <label>階数<input type="number" id="propFloor" placeholder="例: 3"></label>
+      <label>方角<select id="propDirection"></select></label>
+      <label>日当たり<select id="propSunlight"></select></label>
+    </div>
+    <button type="button" id="addPropBtn">候補物件を追加</button>
+
+    <div class="hint" style="margin-top:14px;">住み心地カスタムチェック項目(自由に追加・削除できます。各物件の詳細から当てはまる項目にチェックします)</div>
+    <div class="criteria-list" id="criteriaMasterList" style="margin-top:8px;"></div>
+    <div class="row" style="margin-top:8px;">
+      <input type="text" id="criteriaInput" placeholder="項目を追加(例: 収納が多い)">
+      <button type="button" class="secondary" id="addCriteriaBtn">追加</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>物件名</th><th>家賃</th><th>広さ</th><th>築年数</th><th>駅徒歩</th><th>方角/日当たり</th><th>スコア</th><th>ステータス</th><th>詳細</th><th></th></tr></thead>
+        <tbody id="propBody"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="propEmpty">まだ候補物件が登録されていません</div>
+  </div>
+
+  <div class="panel">
+    <h2>部屋の簡易3D表示</h2>
+    <p class="desc">採寸した縦・横・高さから、部屋の相対的な大きさを簡易的に立体表示します。</p>
+    <div class="form-grid">
+      <label>部屋名<input type="text" id="roomName" placeholder="例: リビング"></label>
+      <label>縦(cm)<input type="number" id="roomDepth" placeholder="例: 350"></label>
+      <label>横(cm)<input type="number" id="roomWidth" placeholder="例: 450"></label>
+      <label>高さ(cm)<input type="number" id="roomHeight" placeholder="例: 240"></label>
+    </div>
+    <button type="button" id="addRoomBtn">部屋を追加</button>
+    <canvas id="roomCanvas" height="220" style="margin-top:14px;"></canvas>
+    <div class="room-list" id="roomList"></div>
+  </div>
+
+  <div class="panel">
+    <h2>割引・優待・補助制度チェックリスト</h2>
+    <p class="desc">一般的なカテゴリの例です。具体的な制度名・条件は勤務先や自治体・引っ越し会社の公式情報をご確認ください。自由に項目の追加・削除もできます。</p>
+    <div id="discountList"></div>
+    <div class="row" style="margin-top:8px;">
+      <input type="text" id="discountInput" placeholder="項目を追加(例: ○○市の転入補助金)">
+      <button type="button" class="secondary" id="addDiscountBtn">追加</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- Notion sync ----------
+  var NOTION_ENABLED = !!(window.claude && window.claude.mcp);
+  var NOTION_SERVER = "Notion";
+  var DS = {
+    quotes: { id: "a11cca18-d7d9-4ff9-b5cf-54b2cb9e5cd5", view: "view://f9c7e11e-7c2a-41e2-b78e-19cd6aa94cfa" },
+    properties: { id: "1b285caf-e337-41ae-9eb7-1ba086358372", view: "view://57542b2c-f98b-4f0d-b294-2f682a8e624b" },
+    criteria: { id: "9cc7a191-c5f9-46de-bbf5-e8604d67d400", view: "view://e72f2a54-0d87-4dc8-8c87-5aab5be02e2b" },
+    discounts: { id: "3b28a9c1-aa4c-4ca0-acda-959d2f6e24ba", view: "view://b2c02102-cc5a-40bd-8dc7-164c535f71d3" },
+    rooms: { id: "97bb6b5a-edc1-433b-9603-afe31d7327b1", view: "view://09e10453-bfbd-40b2-b48f-a5c43fa6a6a0" },
+    address: { id: "9fd275ee-43f4-44d8-88f5-8c7244c7aee5", view: "view://d062f130-657e-4c6c-ad4a-bc63de322a5b" }
+  };
+
+  var DEFAULT_DISCOUNT_ITEMS = [
+    "勤務先の引っ越し手当・住宅手当",
+    "自治体の転入・定住促進補助金",
+    "閑散期割引(6月・11月・1月など)の活用",
+    "早期予約割引",
+    "単身パック・混載便などの割安プラン",
+    "不用品の買取・売却による費用相殺",
+    "クレジットカード・ポイントサイトのキャンペーン活用"
+  ];
+
+  function extractPageId(url) {
+    var m = /([0-9a-f]{32})(?:\?.*)?$/i.exec(url || "");
+    return m ? m[1] : null;
+  }
+
+  function setSyncStatus(text, isError) {
+    var el = document.getElementById("syncStatus");
+    el.textContent = text;
+    el.className = "hint" + (isError ? " sync-error" : "");
+  }
+
+  function queryAllViewRows(viewUrl) {
+    function fetchPage(cursor) {
+      var input = { view_url: viewUrl, page_size: 100 };
+      if (cursor) input.start_cursor = cursor;
+      return window.claude.mcp.callTool(NOTION_SERVER, "notion-query-database-view", input).then(function (res) {
+        var payload = res.payload || {};
+        var rows = payload.results || [];
+        if (payload.has_more && payload.next_cursor) {
+          return fetchPage(payload.next_cursor).then(function (rest) { return rows.concat(rest); });
+        }
+        return rows;
+      });
+    }
+    return fetchPage(null);
+  }
+
+  function notionCreate(dsId, properties) {
+    return window.claude.mcp.callTool(NOTION_SERVER, "notion-create-pages", {
+      parent: { type: "data_source_id", data_source_id: dsId },
+      pages: [{ properties: properties }]
+    });
+  }
+
+  function notionUpdate(pageId, properties) {
+    if (!pageId) return Promise.resolve();
+    return window.claude.mcp.callTool(NOTION_SERVER, "notion-update-page", {
+      page_id: pageId,
+      command: "update_properties",
+      properties: properties
+    });
+  }
+
+  function notionSoftDelete(pageId) {
+    return notionUpdate(pageId, { "削除済み": "__YES__" });
+  }
+
+  // ---------- App state ----------
+  var state = { quotes: [], properties: [], criteria: [], discounts: [], rooms: [], address: { notionId: null, current: "", destination: "" } };
+  var expandedProps = {};
+  var nextTempId = 1;
+
+  var DIRECTION_OPTIONS = ["北", "北東", "東", "南東", "南", "南西", "西", "北西", "不明"];
+  var SUNLIGHT_OPTIONS = ["良い", "普通", "悪い"];
+  var SUNLIGHT_SCORE = { "良い": 100, "普通": 60, "悪い": 20 };
+  var PROP_STATUS_OPTIONS = ["検討中", "有力候補", "見送り"];
+  var PROP_STATUS_COLOR = { "検討中": "var(--consider)", "有力候補": "var(--keep)", "見送り": "var(--letgo)" };
+  var DISCOUNT_STATUS_OPTIONS = ["未検討", "検討中", "活用予定", "対象外"];
+  var DISCOUNT_STATUS_COLOR = { "未検討": "var(--muted)", "検討中": "var(--consider)", "活用予定": "var(--keep)", "対象外": "var(--letgo)" };
+
+  // 一般的な季節傾向の目安(相対レベル1-5)。実測データではなく、引っ越し業界で
+  // 広く言われる繁忙期(3-4月)・閑散期(6月・11月・1月)の傾向を参考として表示。
+  var SEASON_LEVELS = [
+    { month: "1月", level: 2 }, { month: "2月", level: 4 }, { month: "3月", level: 5 },
+    { month: "4月", level: 4 }, { month: "5月", level: 3 }, { month: "6月", level: 2 },
+    { month: "7月", level: 3 }, { month: "8月", level: 3 }, { month: "9月", level: 3 },
+    { month: "10月", level: 3 }, { month: "11月", level: 2 }, { month: "12月", level: 3 }
+  ];
+
+  var PALETTE = ["#2f7d8c", "#c17a3f", "#6b8f71", "#8b6b7a", "#c9a227", "#b3546b", "#4f7d9c"];
+  function colorForIndex(i) { return PALETTE[i % PALETTE.length]; }
+
+  function formatYen(n) {
+    if (typeof n !== "number" || isNaN(n)) return "-";
+    return "¥" + Math.round(n).toLocaleString("ja-JP");
+  }
+
+  // ---------- Address & region search links ----------
+  // 都道府県+市区町村までの大まかな地域名を取り出す簡易ヒューリスティック(推論)。
+  // 正確な住所解析ではないため、抽出できない場合は入力全体をそのまま検索語に使う。
+  function extractRegionQuery(address) {
+    if (!address) return "";
+    var trimmed = address.trim();
+    var m = /^(.*?[都道府県])?(.*?[市区町村])/.exec(trimmed);
+    return (m && m[0]) ? m[0] : trimmed;
+  }
+
+  function buildSearchUrl(query, keyword) {
+    return "https://www.google.com/search?q=" + encodeURIComponent(query + " " + keyword);
+  }
+
+  function addressRowToItem(row) {
+    var pageId = extractPageId(row.url);
+    return {
+      notionId: pageId,
+      current: row["現住所"] || "",
+      destination: row["引っ越し先住所"] || ""
+    };
+  }
+  function loadAddress() {
+    return queryAllViewRows(DS.address.view).then(function (rows) {
+      return rows.length ? addressRowToItem(rows[0]) : { notionId: null, current: "", destination: "" };
+    });
+  }
+  function saveAddress() {
+    var a = state.address;
+    if (!NOTION_ENABLED) return;
+    if (a.notionId) {
+      notionUpdate(a.notionId, { "現住所": a.current || "(未入力)", "引っ越し先住所": a.destination }).catch(function (err) {
+        setSyncStatus("住所の同期に失敗しました(" + (err && err.code) + ")", true);
+      });
+    } else {
+      notionCreate(DS.address.id, { "現住所": a.current || "(未入力)", "引っ越し先住所": a.destination }).then(function (res) {
+        var created = res.payload && res.payload.pages && res.payload.pages[0];
+        if (created && created.id) { a.notionId = created.id; }
+      }).catch(function (err) {
+        setSyncStatus("住所の同期に失敗しました(" + (err && err.code) + ")", true);
+      });
+    }
+  }
+
+  function syncAddressInputs() {
+    document.getElementById("currentAddress").value = state.address.current || "";
+    document.getElementById("destAddress").value = state.address.destination || "";
+  }
+
+  function renderAddress() {
+    var hint = document.getElementById("addressRegionHint");
+    var linksWrap = document.getElementById("addressSearchLinks");
+    linksWrap.innerHTML = "";
+    var region = extractRegionQuery(state.address.destination);
+    if (!region) {
+      hint.textContent = "";
+      return;
+    }
+    hint.textContent = "「" + region + "」として検索します(推定・実際の住所と異なる場合はご了承ください)";
+
+    var subsidyLink = document.createElement("a");
+    subsidyLink.className = "search-link";
+    subsidyLink.target = "_blank";
+    subsidyLink.rel = "noopener noreferrer";
+    subsidyLink.href = buildSearchUrl(region, "引っ越し 補助金 助成金");
+    subsidyLink.textContent = "この地域の補助金・助成金を検索";
+    linksWrap.appendChild(subsidyLink);
+
+    var companyLink = document.createElement("a");
+    companyLink.className = "search-link";
+    companyLink.target = "_blank";
+    companyLink.rel = "noopener noreferrer";
+    companyLink.href = buildSearchUrl(region, "引っ越し業者");
+    companyLink.textContent = "この地域の引っ越し業者を検索";
+    linksWrap.appendChild(companyLink);
+  }
+
+  // ---------- Quotes ----------
+  function quoteRowToItem(row) {
+    var pageId = extractPageId(row.url);
+    return {
+      id: pageId, notionId: pageId,
+      company: row["業者名"] || "",
+      amount: typeof row["見積額"] === "number" ? row["見積額"] : null,
+      date: row["date:取得日:start"] || "",
+      note: row["備考"] || ""
+    };
+  }
+  function quoteToProps(q) {
+    var props = { "業者名": q.company, "見積額": q.amount, "備考": q.note || "" };
+    if (q.date) props["date:取得日:start"] = q.date;
+    return props;
+  }
+  function loadQuotes() {
+    return queryAllViewRows(DS.quotes.view).then(function (rows) {
+      return rows.filter(function (r) { return r["削除済み"] !== "__YES__"; }).map(quoteRowToItem);
+    });
+  }
+
+  function renderQuotes() {
+    var body = document.getElementById("quoteBody");
+    body.innerHTML = "";
+    var sorted = state.quotes.slice().sort(function (a, b) { return (a.amount || Infinity) - (b.amount || Infinity); });
+    document.getElementById("quoteEmpty").style.display = sorted.length ? "none" : "block";
+    var cheapest = sorted.length ? sorted[0].amount : null;
+
+    sorted.forEach(function (q) {
+      var tr = document.createElement("tr");
+
+      var tdCompany = document.createElement("td");
+      tdCompany.className = "name-cell";
+      tdCompany.textContent = q.company;
+      if (cheapest !== null && q.amount === cheapest) {
+        var tag = document.createElement("span");
+        tag.className = "cheapest-tag";
+        tag.textContent = "最安";
+        tdCompany.appendChild(tag);
+      }
+
+      var tdAmount = document.createElement("td");
+      tdAmount.setAttribute("data-label", "見積額");
+      tdAmount.textContent = formatYen(q.amount);
+      if (cheapest !== null && q.amount !== cheapest) {
+        var diff = document.createElement("span");
+        diff.className = "hint";
+        diff.style.margin = "0 0 0 6px";
+        diff.textContent = "(+" + formatYen(q.amount - cheapest) + ")";
+        tdAmount.appendChild(diff);
+      }
+
+      var tdDate = document.createElement("td");
+      tdDate.setAttribute("data-label", "取得日");
+      tdDate.textContent = q.date || "-";
+
+      var tdNote = document.createElement("td");
+      tdNote.setAttribute("data-label", "備考");
+      tdNote.textContent = q.note || "-";
+
+      var tdRm = document.createElement("td");
+      var rmBtn = document.createElement("button");
+      rmBtn.className = "rm-btn"; rmBtn.type = "button"; rmBtn.textContent = "削除";
+      rmBtn.addEventListener("click", function () {
+        state.quotes = state.quotes.filter(function (x) { return x.id !== q.id; });
+        renderAll();
+        if (NOTION_ENABLED) notionSoftDelete(q.notionId).catch(function (err) {
+          setSyncStatus("見積もりの削除の同期に失敗しました(" + (err && err.code) + ")", true);
+        });
+      });
+      tdRm.appendChild(rmBtn);
+
+      tr.appendChild(tdCompany); tr.appendChild(tdAmount); tr.appendChild(tdDate); tr.appendChild(tdNote); tr.appendChild(tdRm);
+      body.appendChild(tr);
+    });
+  }
+
+  // ---------- Season + quote charts ----------
+  function setupCanvas(canvas) {
+    var dpr = window.devicePixelRatio || 1;
+    var cssWidth = canvas.clientWidth || canvas.parentElement.clientWidth || 400;
+    var cssHeight = parseInt(canvas.getAttribute("height"), 10) || 160;
+    canvas.width = cssWidth * dpr;
+    canvas.height = cssHeight * dpr;
+    canvas.style.height = cssHeight + "px";
+    var ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
+    return { ctx: ctx, w: cssWidth, h: cssHeight };
+  }
+
+  function drawSeasonChart() {
+    var setup = setupCanvas(document.getElementById("seasonChart"));
+    var ctx = setup.ctx, w = setup.w, h = setup.h;
+    var padLeft = 28, padBottom = 22, padTop = 10, padRight = 10;
+    var chartW = w - padLeft - padRight;
+    var chartH = h - padTop - padBottom;
+    var slot = chartW / SEASON_LEVELS.length;
+    var barWidth = Math.min(28, slot * 0.6);
+    ctx.font = "10px sans-serif";
+    SEASON_LEVELS.forEach(function (m, i) {
+      var barH = (m.level / 5) * chartH;
+      var x = padLeft + slot * i + (slot - barWidth) / 2;
+      var y = padTop + chartH - barH;
+      ctx.fillStyle = m.level >= 4 ? "#b3546b" : (m.level <= 2 ? "#4f8f6a" : "#c99a3f");
+      ctx.fillRect(x, y, barWidth, barH);
+      ctx.fillStyle = "#6b7f7f";
+      ctx.textAlign = "center";
+      ctx.fillText(m.month, x + barWidth / 2, padTop + chartH + 14);
+    });
+  }
+
+  function drawQuoteChart() {
+    var canvas = document.getElementById("quoteChart");
+    var setup = setupCanvas(canvas);
+    var ctx = setup.ctx, w = setup.w, h = setup.h;
+    var legend = document.getElementById("quoteChartLegend");
+    legend.innerHTML = "";
+    var dated = state.quotes.filter(function (q) { return q.date && typeof q.amount === "number"; });
+    if (!dated.length) {
+      ctx.fillStyle = "#9ca3af";
+      ctx.font = "13px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("日付付きの見積もりを登録すると、ここに推移が表示されます", w / 2, h / 2);
+      return;
+    }
+    var padLeft = 56, padBottom = 24, padTop = 12, padRight = 14;
+    var chartW = w - padLeft - padRight;
+    var chartH = h - padTop - padBottom;
+    var minDate = dated.reduce(function (m, q) { return q.date < m ? q.date : m; }, dated[0].date);
+    var maxDate = dated.reduce(function (m, q) { return q.date > m ? q.date : m; }, dated[0].date);
+    var minAmt = Math.min.apply(null, dated.map(function (q) { return q.amount; }));
+    var maxAmt = Math.max.apply(null, dated.map(function (q) { return q.amount; }));
+    if (minAmt === maxAmt) { minAmt -= 1000; maxAmt += 1000; }
+    var t0 = new Date(minDate).getTime(), t1 = new Date(maxDate).getTime();
+    if (t0 === t1) { t0 -= 1; t1 += 1; }
+
+    function xFor(dateStr) { return padLeft + ((new Date(dateStr).getTime() - t0) / (t1 - t0)) * chartW; }
+    function yFor(amount) { return padTop + chartH - ((amount - minAmt) / (maxAmt - minAmt)) * chartH; }
+
+    ctx.strokeStyle = "#dde6e6"; ctx.fillStyle = "#6b7f7f"; ctx.font = "10px sans-serif"; ctx.textAlign = "right";
+    for (var s = 0; s <= 4; s++) {
+      var y = padTop + chartH - (chartH * s / 4);
+      ctx.beginPath(); ctx.moveTo(padLeft, y); ctx.lineTo(padLeft + chartW, y); ctx.stroke();
+      var val = minAmt + (maxAmt - minAmt) * s / 4;
+      ctx.fillText(Math.round(val).toLocaleString("ja-JP"), padLeft - 6, y + 3);
+    }
+
+    var byCompany = {};
+    dated.forEach(function (q) {
+      if (!byCompany[q.company]) byCompany[q.company] = [];
+      byCompany[q.company].push(q);
+    });
+    var companies = Object.keys(byCompany);
+    companies.forEach(function (company, ci) {
+      var pts = byCompany[company].slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+      var color = colorForIndex(ci);
+      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2;
+      ctx.beginPath();
+      pts.forEach(function (q, i) {
+        var x = xFor(q.date), y = yFor(q.amount);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      pts.forEach(function (q) {
+        ctx.beginPath();
+        ctx.arc(xFor(q.date), yFor(q.amount), 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      var legendItem = document.createElement("div");
+      legendItem.className = "legend-item";
+      var sw = document.createElement("span"); sw.className = "swatch"; sw.style.background = color;
+      var label = document.createElement("span"); label.textContent = company;
+      legendItem.appendChild(sw); legendItem.appendChild(label);
+      legend.appendChild(legendItem);
+    });
+  }
+
+  // ---------- Properties (candidate housing) ----------
+  function propRowToItem(row) {
+    var pageId = extractPageId(row.url);
+    var customChecked = [];
+    if (row["カスタムチェック"]) {
+      try { customChecked = JSON.parse(row["カスタムチェック"]); } catch (e) { customChecked = []; }
+    }
+    return {
+      id: pageId, notionId: pageId,
+      name: row["物件名"] || "",
+      rent: typeof row["家賃"] === "number" ? row["家賃"] : null,
+      size: typeof row["広さ_m2"] === "number" ? row["広さ_m2"] : null,
+      age: typeof row["築年数"] === "number" ? row["築年数"] : null,
+      stationMin: typeof row["駅徒歩分"] === "number" ? row["駅徒歩分"] : null,
+      floor: typeof row["階数"] === "number" ? row["階数"] : null,
+      direction: row["方角"] || "不明",
+      sunlight: row["日当たり"] || "普通",
+      customChecked: customChecked,
+      status: row["決定ステータス"] || "検討中"
+    };
+  }
+  function propToProps(p) {
+    return {
+      "物件名": p.name, "家賃": p.rent, "広さ_m2": p.size, "築年数": p.age,
+      "駅徒歩分": p.stationMin, "階数": p.floor, "方角": p.direction, "日当たり": p.sunlight,
+      "カスタムチェック": JSON.stringify(p.customChecked || []), "決定ステータス": p.status
+    };
+  }
+  function loadProperties() {
+    return queryAllViewRows(DS.properties.view).then(function (rows) {
+      return rows.filter(function (r) { return r["削除済み"] !== "__YES__"; }).map(propRowToItem);
+    });
+  }
+
+  function criteriaRowToItem(row) {
+    var pageId = extractPageId(row.url);
+    return { id: pageId, notionId: pageId, name: row["項目名"] || "" };
+  }
+  function loadCriteria() {
+    return queryAllViewRows(DS.criteria.view).then(function (rows) {
+      return rows.filter(function (r) { return r["削除済み"] !== "__YES__"; }).map(criteriaRowToItem).filter(function (c) { return c.name; });
+    });
+  }
+
+  // 登録済みの候補同士を比較した相対スコア(0-100)。単独の絶対評価ではない。
+  function computePropertyScores() {
+    var props = state.properties;
+    function normalize(values, higherIsBetter) {
+      var valid = values.filter(function (v) { return typeof v === "number"; });
+      if (!valid.length) return function () { return 50; };
+      var min = Math.min.apply(null, valid), max = Math.max.apply(null, valid);
+      if (min === max) return function () { return 50; };
+      return function (v) {
+        if (typeof v !== "number") return 50;
+        var ratio = (v - min) / (max - min);
+        return higherIsBetter ? ratio * 100 : (1 - ratio) * 100;
+      };
+    }
+    var rentScore = normalize(props.map(function (p) { return p.rent; }), false);
+    var sizeScore = normalize(props.map(function (p) { return p.size; }), true);
+    var ageScore = normalize(props.map(function (p) { return p.age; }), false);
+    var stationScore = normalize(props.map(function (p) { return p.stationMin; }), false);
+
+    var scores = {};
+    props.forEach(function (p) {
+      var criteriaTotal = state.criteria.length;
+      var criteriaScore = criteriaTotal > 0 ? ((p.customChecked || []).length / criteriaTotal) * 100 : 50;
+      var sunScore = SUNLIGHT_SCORE[p.sunlight] || 60;
+      var total = (rentScore(p.rent) + sizeScore(p.size) + ageScore(p.age) + stationScore(p.stationMin) + sunScore + criteriaScore) / 6;
+      scores[p.id] = Math.round(Math.max(0, Math.min(100, total)));
+    });
+    return scores;
+  }
+
+  function renderCriteriaMasterList() {
+    var list = document.getElementById("criteriaMasterList");
+    list.innerHTML = "";
+    if (!state.criteria.length) {
+      var empty = document.createElement("span");
+      empty.className = "hint"; empty.style.margin = "0";
+      empty.textContent = "まだカスタム項目がありません";
+      list.appendChild(empty);
+      return;
+    }
+    state.criteria.forEach(function (c) {
+      var chip = document.createElement("div");
+      chip.className = "row";
+      chip.style.display = "inline-flex";
+      chip.style.background = "var(--bg)";
+      chip.style.borderRadius = "999px";
+      chip.style.padding = "4px 6px 4px 12px";
+      chip.style.marginRight = "6px";
+      chip.style.marginBottom = "6px";
+      var label = document.createElement("span");
+      label.textContent = c.name;
+      label.style.fontSize = "0.85rem";
+      var rm = document.createElement("button");
+      rm.type = "button"; rm.className = "rm-btn"; rm.textContent = "✕";
+      rm.addEventListener("click", function () {
+        state.criteria = state.criteria.filter(function (x) { return x.id !== c.id; });
+        state.properties.forEach(function (p) {
+          p.customChecked = (p.customChecked || []).filter(function (n) { return n !== c.name; });
+        });
+        renderAll();
+        if (NOTION_ENABLED) notionSoftDelete(c.notionId).catch(function (err) {
+          setSyncStatus("カスタム項目の削除の同期に失敗しました(" + (err && err.code) + ")", true);
+        });
+      });
+      chip.appendChild(label); chip.appendChild(rm);
+      list.appendChild(chip);
+    });
+  }
+
+  function renderProperties() {
+    var body = document.getElementById("propBody");
+    body.innerHTML = "";
+    document.getElementById("propEmpty").style.display = state.properties.length ? "none" : "block";
+    var scores = computePropertyScores();
+    var sorted = state.properties.slice().sort(function (a, b) { return (scores[b.id] || 0) - (scores[a.id] || 0); });
+
+    sorted.forEach(function (p) {
+      var tr = document.createElement("tr");
+
+      var tdName = document.createElement("td");
+      tdName.className = "name-cell"; tdName.textContent = p.name;
+
+      var tdRent = document.createElement("td");
+      tdRent.setAttribute("data-label", "家賃"); tdRent.textContent = formatYen(p.rent);
+
+      var tdSize = document.createElement("td");
+      tdSize.setAttribute("data-label", "広さ"); tdSize.textContent = (p.size != null ? p.size + "m²" : "-");
+
+      var tdAge = document.createElement("td");
+      tdAge.setAttribute("data-label", "築年数"); tdAge.textContent = (p.age != null ? p.age + "年" : "-");
+
+      var tdStation = document.createElement("td");
+      tdStation.setAttribute("data-label", "駅徒歩"); tdStation.textContent = (p.stationMin != null ? p.stationMin + "分" : "-");
+
+      var tdDir = document.createElement("td");
+      tdDir.setAttribute("data-label", "方角/日当たり"); tdDir.textContent = p.direction + " / " + p.sunlight;
+
+      var tdScore = document.createElement("td");
+      tdScore.setAttribute("data-label", "スコア");
+      var scoreVal = scores[p.id] || 0;
+      var scoreWrap = document.createElement("div");
+      scoreWrap.className = "row"; scoreWrap.style.gap = "6px";
+      var scoreTrack = document.createElement("div"); scoreTrack.className = "score-bar-track";
+      var scoreFill = document.createElement("div"); scoreFill.className = "score-bar-fill";
+      scoreFill.style.width = scoreVal + "%";
+      scoreFill.style.background = scoreVal >= 65 ? "var(--keep)" : (scoreVal >= 40 ? "var(--consider)" : "var(--letgo)");
+      scoreTrack.appendChild(scoreFill);
+      var scoreText = document.createElement("span"); scoreText.textContent = scoreVal;
+      scoreWrap.appendChild(scoreTrack); scoreWrap.appendChild(scoreText);
+      tdScore.appendChild(scoreWrap);
+
+      var tdStatus = document.createElement("td");
+      tdStatus.setAttribute("data-label", "ステータス");
+      var statusSelect = document.createElement("select");
+      statusSelect.className = "status-select";
+      PROP_STATUS_OPTIONS.forEach(function (s) {
+        var opt = document.createElement("option"); opt.value = s; opt.textContent = s;
+        if (s === p.status) opt.selected = true;
+        statusSelect.appendChild(opt);
+      });
+      statusSelect.addEventListener("change", function () {
+        p.status = statusSelect.value;
+        renderAll();
+        if (NOTION_ENABLED) notionUpdate(p.notionId, { "決定ステータス": p.status }).catch(function (err) {
+          setSyncStatus("物件ステータスの同期に失敗しました(" + (err && err.code) + ")", true);
+        });
+      });
+      tdStatus.appendChild(statusSelect);
+      var badgeDot = document.createElement("span");
+      badgeDot.className = "badge"; badgeDot.style.background = PROP_STATUS_COLOR[p.status] || "#999";
+      badgeDot.style.marginLeft = "6px"; badgeDot.textContent = " ";
+      tdStatus.appendChild(badgeDot);
+
+      var tdExpand = document.createElement("td");
+      var expandBtn = document.createElement("button");
+      expandBtn.className = "expand-btn"; expandBtn.type = "button";
+      expandBtn.textContent = (expandedProps[p.id] ? "▾ 詳細を閉じる" : "▸ 詳細を編集");
+      expandBtn.addEventListener("click", function () {
+        expandedProps[p.id] = !expandedProps[p.id];
+        renderAll();
+      });
+      tdExpand.appendChild(expandBtn);
+
+      var tdRm = document.createElement("td");
+      var rmBtn = document.createElement("button");
+      rmBtn.className = "rm-btn"; rmBtn.type = "button"; rmBtn.textContent = "削除";
+      rmBtn.addEventListener("click", function () {
+        state.properties = state.properties.filter(function (x) { return x.id !== p.id; });
+        renderAll();
+        if (NOTION_ENABLED) notionSoftDelete(p.notionId).catch(function (err) {
+          setSyncStatus("物件の削除の同期に失敗しました(" + (err && err.code) + ")", true);
+        });
+      });
+      tdRm.appendChild(rmBtn);
+
+      tr.appendChild(tdName); tr.appendChild(tdRent); tr.appendChild(tdSize); tr.appendChild(tdAge);
+      tr.appendChild(tdStation); tr.appendChild(tdDir); tr.appendChild(tdScore); tr.appendChild(tdStatus);
+      tr.appendChild(tdExpand); tr.appendChild(tdRm);
+      body.appendChild(tr);
+
+      if (expandedProps[p.id]) {
+        var detailRow = document.createElement("tr");
+        detailRow.className = "detail-row";
+        var detailCell = document.createElement("td");
+        detailCell.colSpan = 10;
+
+        var editGrid = document.createElement("div");
+        editGrid.className = "form-grid";
+        function editField(labelText, value, onChange, type) {
+          var label = document.createElement("label");
+          label.textContent = labelText;
+          var input = document.createElement("input");
+          input.type = type || "number";
+          input.value = value != null ? value : "";
+          input.addEventListener("change", function () { onChange(input.value); });
+          label.appendChild(input);
+          editGrid.appendChild(label);
+          return input;
+        }
+        editField("家賃(円)", p.rent, function (v) {
+          p.rent = v === "" ? null : parseFloat(v); renderAll();
+          if (NOTION_ENABLED) notionUpdate(p.notionId, { "家賃": p.rent });
+        });
+        editField("広さ(m²)", p.size, function (v) {
+          p.size = v === "" ? null : parseFloat(v); renderAll();
+          if (NOTION_ENABLED) notionUpdate(p.notionId, { "広さ_m2": p.size });
+        });
+        editField("築年数", p.age, function (v) {
+          p.age = v === "" ? null : parseFloat(v); renderAll();
+          if (NOTION_ENABLED) notionUpdate(p.notionId, { "築年数": p.age });
+        });
+        editField("駅徒歩(分)", p.stationMin, function (v) {
+          p.stationMin = v === "" ? null : parseFloat(v); renderAll();
+          if (NOTION_ENABLED) notionUpdate(p.notionId, { "駅徒歩分": p.stationMin });
+        });
+        editField("階数", p.floor, function (v) {
+          p.floor = v === "" ? null : parseFloat(v); renderAll();
+          if (NOTION_ENABLED) notionUpdate(p.notionId, { "階数": p.floor });
+        });
+
+        var dirLabel = document.createElement("label");
+        dirLabel.textContent = "方角";
+        var dirSelect = document.createElement("select");
+        DIRECTION_OPTIONS.forEach(function (d) {
+          var opt = document.createElement("option"); opt.value = d; opt.textContent = d;
+          if (d === p.direction) opt.selected = true;
+          dirSelect.appendChild(opt);
+        });
+        dirSelect.addEventListener("change", function () {
+          p.direction = dirSelect.value; renderAll();
+          if (NOTION_ENABLED) notionUpdate(p.notionId, { "方角": p.direction });
+        });
+        dirLabel.appendChild(dirSelect);
+        editGrid.appendChild(dirLabel);
+
+        var sunLabel = document.createElement("label");
+        sunLabel.textContent = "日当たり";
+        var sunSelect = document.createElement("select");
+        SUNLIGHT_OPTIONS.forEach(function (s) {
+          var opt = document.createElement("option"); opt.value = s; opt.textContent = s;
+          if (s === p.sunlight) opt.selected = true;
+          sunSelect.appendChild(opt);
+        });
+        sunSelect.addEventListener("change", function () {
+          p.sunlight = sunSelect.value; renderAll();
+          if (NOTION_ENABLED) notionUpdate(p.notionId, { "日当たり": p.sunlight });
+        });
+        sunLabel.appendChild(sunSelect);
+        editGrid.appendChild(sunLabel);
+
+        detailCell.appendChild(editGrid);
+
+        var criteriaTitle = document.createElement("div");
+        criteriaTitle.className = "hint"; criteriaTitle.style.margin = "10px 0 6px";
+        criteriaTitle.textContent = "住み心地カスタムチェック";
+        detailCell.appendChild(criteriaTitle);
+
+        var criteriaListEl = document.createElement("div");
+        criteriaListEl.className = "criteria-list";
+        if (!state.criteria.length) {
+          var noCriteria = document.createElement("span");
+          noCriteria.className = "hint"; noCriteria.style.margin = "0";
+          noCriteria.textContent = "上の「住み心地カスタムチェック項目」からまず項目を追加してください";
+          criteriaListEl.appendChild(noCriteria);
+        }
+        state.criteria.forEach(function (c) {
+          var row = document.createElement("label");
+          row.className = "criteria-item";
+          var cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.checked = (p.customChecked || []).indexOf(c.name) !== -1;
+          cb.addEventListener("change", function () {
+            p.customChecked = p.customChecked || [];
+            if (cb.checked) {
+              if (p.customChecked.indexOf(c.name) === -1) p.customChecked.push(c.name);
+            } else {
+              p.customChecked = p.customChecked.filter(function (n) { return n !== c.name; });
+            }
+            renderAll();
+            if (NOTION_ENABLED) notionUpdate(p.notionId, { "カスタムチェック": JSON.stringify(p.customChecked) });
+          });
+          var span = document.createElement("span"); span.textContent = c.name;
+          row.appendChild(cb); row.appendChild(span);
+          criteriaListEl.appendChild(row);
+        });
+        detailCell.appendChild(criteriaListEl);
+
+        detailRow.appendChild(detailCell);
+        body.appendChild(detailRow);
+      }
+    });
+  }
+
+  // ---------- Rooms (simple isometric 3D) ----------
+  function roomRowToItem(row) {
+    var pageId = extractPageId(row.url);
+    return {
+      id: pageId, notionId: pageId,
+      name: row["部屋名"] || "",
+      depth: typeof row["縦_cm"] === "number" ? row["縦_cm"] : 300,
+      width: typeof row["横_cm"] === "number" ? row["横_cm"] : 300,
+      height: typeof row["高さ_cm"] === "number" ? row["高さ_cm"] : 240
+    };
+  }
+  function loadRooms() {
+    return queryAllViewRows(DS.rooms.view).then(function (rows) {
+      return rows.filter(function (r) { return r["削除済み"] !== "__YES__"; }).map(roomRowToItem);
+    });
+  }
+
+  function drawIsoBox(ctx, x0, y0, w, d, h, hue) {
+    var cos30 = Math.cos(Math.PI / 6), sin30 = Math.sin(Math.PI / 6);
+    function proj(px, py, pz) {
+      return { x: x0 + (px - py) * cos30, y: y0 + (px + py) * sin30 - pz };
+    }
+    var a = proj(0, 0, 0), b = proj(w, 0, 0), c = proj(w, d, 0), dd = proj(0, d, 0);
+    var a2 = proj(0, 0, h), b2 = proj(w, 0, h), c2 = proj(w, d, h), d2 = proj(0, d, h);
+    ctx.strokeStyle = "rgba(0,0,0,0.15)"; ctx.lineWidth = 1;
+
+    ctx.fillStyle = hue.top;
+    ctx.beginPath(); ctx.moveTo(a2.x, a2.y); ctx.lineTo(b2.x, b2.y); ctx.lineTo(c2.x, c2.y); ctx.lineTo(d2.x, d2.y); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = hue.left;
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a2.x, a2.y); ctx.lineTo(d2.x, d2.y); ctx.lineTo(dd.x, dd.y); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = hue.right;
+    ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.lineTo(c2.x, c2.y); ctx.lineTo(b2.x, b2.y); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+  }
+
+  function drawRooms() {
+    var canvas = document.getElementById("roomCanvas");
+    var setup = setupCanvas(canvas);
+    var ctx = setup.ctx, w = setup.w, h = setup.h;
+    if (!state.rooms.length) {
+      ctx.fillStyle = "#9ca3af"; ctx.font = "13px sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("部屋を追加すると、ここに簡易3D表示されます", w / 2, h / 2);
+      return;
+    }
+    var maxDim = Math.max.apply(null, state.rooms.map(function (r) { return Math.max(r.width, r.depth, r.height); }));
+    var scale = maxDim > 0 ? (h * 0.5) / maxDim : 0.3;
+    var gap = 40;
+    var x = 40;
+    state.rooms.forEach(function (r, i) {
+      var wS = r.width * scale, dS = r.depth * scale, hS = r.height * scale;
+      var originX = x + dS * Math.cos(Math.PI / 6);
+      var originY = h - 34;
+      drawIsoBox(ctx, originX, originY, wS, dS, hS, {
+        top: colorForIndex(i), left: shade(colorForIndex(i), -30), right: shade(colorForIndex(i), -15)
+      });
+      ctx.fillStyle = "#374151"; ctx.font = "11px sans-serif"; ctx.textAlign = "center";
+      ctx.fillText(r.name, originX, h - 18);
+      ctx.fillText(r.width + "×" + r.depth + "×" + r.height + "cm", originX, h - 5);
+      x += wS + dS * 0.6 + gap;
+    });
+  }
+
+  function shade(hex, percent) {
+    var num = parseInt(hex.replace("#", ""), 16);
+    var r = Math.max(0, Math.min(255, (num >> 16) + percent));
+    var g = Math.max(0, Math.min(255, ((num >> 8) & 0x00FF) + percent));
+    var b = Math.max(0, Math.min(255, (num & 0x0000FF) + percent));
+    return "rgb(" + r + "," + g + "," + b + ")";
+  }
+
+  function renderRoomList() {
+    var list = document.getElementById("roomList");
+    list.innerHTML = "";
+    state.rooms.forEach(function (r) {
+      var tag = document.createElement("div");
+      tag.className = "room-tag";
+      var label = document.createElement("span");
+      label.textContent = r.name + "(" + r.width + "×" + r.depth + "×" + r.height + "cm)";
+      var rm = document.createElement("button");
+      rm.type = "button"; rm.className = "rm-btn"; rm.textContent = "✕";
+      rm.addEventListener("click", function () {
+        state.rooms = state.rooms.filter(function (x) { return x.id !== r.id; });
+        renderAll();
+        if (NOTION_ENABLED) notionSoftDelete(r.notionId).catch(function (err) {
+          setSyncStatus("部屋の削除の同期に失敗しました(" + (err && err.code) + ")", true);
+        });
+      });
+      tag.appendChild(label); tag.appendChild(rm);
+      list.appendChild(tag);
+    });
+  }
+
+  // ---------- Discount checklist ----------
+  function discountRowToItem(row) {
+    var pageId = extractPageId(row.url);
+    return { id: pageId, notionId: pageId, name: row["項目名"] || "", status: row["状態"] || "未検討" };
+  }
+  function loadDiscounts() {
+    return queryAllViewRows(DS.discounts.view).then(function (rows) {
+      return rows.filter(function (r) { return r["削除済み"] !== "__YES__"; }).map(discountRowToItem).filter(function (d) { return d.name; });
+    });
+  }
+
+  function renderDiscounts() {
+    var list = document.getElementById("discountList");
+    list.innerHTML = "";
+    state.discounts.forEach(function (d) {
+      var row = document.createElement("div");
+      row.className = "row between";
+      row.style.padding = "6px 0";
+      row.style.borderBottom = "1px solid var(--border)";
+      var label = document.createElement("span");
+      label.textContent = d.name;
+      label.style.fontSize = "0.88rem";
+
+      var right = document.createElement("div");
+      right.className = "row";
+      var select = document.createElement("select");
+      select.className = "status-select";
+      DISCOUNT_STATUS_OPTIONS.forEach(function (s) {
+        var opt = document.createElement("option"); opt.value = s; opt.textContent = s;
+        if (s === d.status) opt.selected = true;
+        select.appendChild(opt);
+      });
+      select.addEventListener("change", function () {
+        d.status = select.value; renderAll();
+        if (NOTION_ENABLED) notionUpdate(d.notionId, { "状態": d.status }).catch(function (err) {
+          setSyncStatus("割引チェックの同期に失敗しました(" + (err && err.code) + ")", true);
+        });
+      });
+      var badge = document.createElement("span");
+      badge.className = "badge"; badge.style.background = DISCOUNT_STATUS_COLOR[d.status] || "#999";
+      badge.textContent = " ";
+
+      var rm = document.createElement("button");
+      rm.type = "button"; rm.className = "rm-btn"; rm.textContent = "削除";
+      rm.addEventListener("click", function () {
+        state.discounts = state.discounts.filter(function (x) { return x.id !== d.id; });
+        renderAll();
+        if (NOTION_ENABLED) notionSoftDelete(d.notionId).catch(function (err) {
+          setSyncStatus("割引項目の削除の同期に失敗しました(" + (err && err.code) + ")", true);
+        });
+      });
+
+      right.appendChild(badge); right.appendChild(select); right.appendChild(rm);
+      row.appendChild(label); row.appendChild(right);
+      list.appendChild(row);
+    });
+  }
+
+  // ---------- Stats ----------
+  function renderStats() {
+    // (kept minimal on purpose; the per-section tables already surface the key numbers)
+  }
+
+  function renderAll() {
+    syncAddressInputs();
+    renderAddress();
+    renderQuotes();
+    drawSeasonChart();
+    drawQuoteChart();
+    renderCriteriaMasterList();
+    renderProperties();
+    renderRoomList();
+    drawRooms();
+    renderDiscounts();
+  }
+
+  // ---------- Init ----------
+  function seedDirectionAndSunlightSelects() {
+    var dirSelect = document.getElementById("propDirection");
+    DIRECTION_OPTIONS.forEach(function (d) {
+      var opt = document.createElement("option"); opt.value = d; opt.textContent = d;
+      dirSelect.appendChild(opt);
+    });
+    var sunSelect = document.getElementById("propSunlight");
+    SUNLIGHT_OPTIONS.forEach(function (s) {
+      var opt = document.createElement("option"); opt.value = s; opt.textContent = s;
+      sunSelect.appendChild(opt);
+    });
+  }
+
+  function init() {
+    seedDirectionAndSunlightSelects();
+
+    document.getElementById("currentAddress").addEventListener("change", function () {
+      state.address.current = document.getElementById("currentAddress").value.trim();
+      saveAddress();
+    });
+    document.getElementById("destAddress").addEventListener("change", function () {
+      state.address.destination = document.getElementById("destAddress").value.trim();
+      renderAddress();
+      saveAddress();
+    });
+    document.getElementById("destAddress").addEventListener("input", function () {
+      state.address.destination = document.getElementById("destAddress").value;
+      renderAddress();
+    });
+
+    document.getElementById("addQuoteBtn").addEventListener("click", function () {
+      var company = document.getElementById("quoteCompany").value.trim();
+      var amountRaw = document.getElementById("quoteAmount").value;
+      if (!company || amountRaw === "") return;
+      var q = {
+        id: "temp-" + (nextTempId++), notionId: null,
+        company: company, amount: parseFloat(amountRaw),
+        date: document.getElementById("quoteDate").value || "",
+        note: document.getElementById("quoteNote").value.trim()
+      };
+      state.quotes.push(q);
+      document.getElementById("quoteCompany").value = "";
+      document.getElementById("quoteAmount").value = "";
+      document.getElementById("quoteDate").value = "";
+      document.getElementById("quoteNote").value = "";
+      renderAll();
+      if (NOTION_ENABLED) {
+        notionCreate(DS.quotes.id, quoteToProps(q)).then(function (res) {
+          var created = res.payload && res.payload.pages && res.payload.pages[0];
+          if (created && created.id) { q.id = created.id; q.notionId = created.id; }
+        }).catch(function (err) {
+          setSyncStatus("見積もりの追加の同期に失敗しました(" + (err && err.code) + ")", true);
+        });
+      }
+    });
+
+    document.getElementById("addPropBtn").addEventListener("click", function () {
+      var name = document.getElementById("propName").value.trim();
+      if (!name) return;
+      function numOrNull(id) { var v = document.getElementById(id).value; return v === "" ? null : parseFloat(v); }
+      var p = {
+        id: "temp-" + (nextTempId++), notionId: null,
+        name: name,
+        rent: numOrNull("propRent"), size: numOrNull("propSize"), age: numOrNull("propAge"),
+        stationMin: numOrNull("propStation"), floor: numOrNull("propFloor"),
+        direction: document.getElementById("propDirection").value || "不明",
+        sunlight: document.getElementById("propSunlight").value || "普通",
+        customChecked: [], status: "検討中"
+      };
+      state.properties.push(p);
+      ["propName", "propRent", "propSize", "propAge", "propStation", "propFloor"].forEach(function (id) {
+        document.getElementById(id).value = "";
+      });
+      renderAll();
+      if (NOTION_ENABLED) {
+        notionCreate(DS.properties.id, propToProps(p)).then(function (res) {
+          var created = res.payload && res.payload.pages && res.payload.pages[0];
+          if (created && created.id) { p.id = created.id; p.notionId = created.id; }
+        }).catch(function (err) {
+          setSyncStatus("候補物件の追加の同期に失敗しました(" + (err && err.code) + ")", true);
+        });
+      }
+    });
+
+    document.getElementById("addCriteriaBtn").addEventListener("click", function () {
+      var input = document.getElementById("criteriaInput");
+      var name = input.value.trim();
+      if (!name || state.criteria.some(function (c) { return c.name === name; })) return;
+      var c = { id: "temp-" + (nextTempId++), notionId: null, name: name };
+      state.criteria.push(c);
+      input.value = "";
+      renderAll();
+      if (NOTION_ENABLED) {
+        notionCreate(DS.criteria.id, { "項目名": name }).then(function (res) {
+          var created = res.payload && res.payload.pages && res.payload.pages[0];
+          if (created && created.id) { c.id = created.id; c.notionId = created.id; }
+        }).catch(function (err) {
+          setSyncStatus("カスタム項目の追加の同期に失敗しました(" + (err && err.code) + ")", true);
+        });
+      }
+    });
+
+    document.getElementById("addRoomBtn").addEventListener("click", function () {
+      var name = document.getElementById("roomName").value.trim();
+      var depth = parseFloat(document.getElementById("roomDepth").value);
+      var width = parseFloat(document.getElementById("roomWidth").value);
+      var height = parseFloat(document.getElementById("roomHeight").value);
+      if (!name || !depth || !width || !height) return;
+      var r = { id: "temp-" + (nextTempId++), notionId: null, name: name, depth: depth, width: width, height: height };
+      state.rooms.push(r);
+      ["roomName", "roomDepth", "roomWidth", "roomHeight"].forEach(function (id) { document.getElementById(id).value = ""; });
+      renderAll();
+      if (NOTION_ENABLED) {
+        notionCreate(DS.rooms.id, { "部屋名": name, "縦_cm": depth, "横_cm": width, "高さ_cm": height }).then(function (res) {
+          var created = res.payload && res.payload.pages && res.payload.pages[0];
+          if (created && created.id) { r.id = created.id; r.notionId = created.id; }
+        }).catch(function (err) {
+          setSyncStatus("部屋の追加の同期に失敗しました(" + (err && err.code) + ")", true);
+        });
+      }
+    });
+
+    document.getElementById("addDiscountBtn").addEventListener("click", function () {
+      var input = document.getElementById("discountInput");
+      var name = input.value.trim();
+      if (!name || state.discounts.some(function (d) { return d.name === name; })) return;
+      var d = { id: "temp-" + (nextTempId++), notionId: null, name: name, status: "未検討" };
+      state.discounts.push(d);
+      input.value = "";
+      renderAll();
+      if (NOTION_ENABLED) {
+        notionCreate(DS.discounts.id, { "項目名": name, "状態": "未検討" }).then(function (res) {
+          var created = res.payload && res.payload.pages && res.payload.pages[0];
+          if (created && created.id) { d.id = created.id; d.notionId = created.id; }
+        }).catch(function (err) {
+          setSyncStatus("割引項目の追加の同期に失敗しました(" + (err && err.code) + ")", true);
+        });
+      }
+    });
+
+    window.addEventListener("resize", function () {
+      drawSeasonChart(); drawQuoteChart(); drawRooms();
+    });
+
+    if (NOTION_ENABLED) {
+      setSyncStatus("Notionから読み込んでいます…");
+      Promise.all([loadQuotes(), loadProperties(), loadCriteria(), loadDiscounts(), loadRooms(), loadAddress()]).then(function (results) {
+        state.quotes = results[0];
+        state.properties = results[1];
+        state.criteria = results[2];
+        state.discounts = results[3];
+        state.rooms = results[4];
+        state.address = results[5];
+        if (!state.discounts.length) {
+          // 初回のみ、一般的なカテゴリを既定項目として用意する
+          DEFAULT_DISCOUNT_ITEMS.forEach(function (name) {
+            var d = { id: "temp-" + (nextTempId++), notionId: null, name: name, status: "未検討" };
+            state.discounts.push(d);
+            notionCreate(DS.discounts.id, { "項目名": name, "状態": "未検討" }).then(function (res) {
+              var created = res.payload && res.payload.pages && res.payload.pages[0];
+              if (created && created.id) { d.id = created.id; d.notionId = created.id; }
+            }).catch(function () {});
+          });
+        }
+        renderAll();
+        setSyncStatus("Notionと同期中(他の端末からも同じデータが見えます)");
+      }).catch(function (err) {
+        setSyncStatus("Notionからの読み込みに失敗しました(" + (err && err.code) + ")。ページを再読み込みしてください。", true);
+        renderAll();
+      });
+    } else {
+      DEFAULT_DISCOUNT_ITEMS.forEach(function (name) {
+        state.discounts.push({ id: "temp-" + (nextTempId++), notionId: null, name: name, status: "未検討" });
+      });
+      setSyncStatus("ローカルモードです(このページを閉じるとデータは消えます)");
+      renderAll();
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
+})();
+</script>
+</body>
+</html>
