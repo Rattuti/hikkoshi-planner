@@ -141,9 +141,19 @@
     <div class="form-grid">
       <label>現住所<input type="text" id="currentAddress" placeholder="例: 東京都○○区○○1-2-3"></label>
       <label>引っ越し先住所<input type="text" id="destAddress" placeholder="例: 神奈川県○○市○○4-5-6"></label>
+      <label>世帯タイプ(補助金検索の絞り込み)
+        <select id="householdType">
+          <option value="">指定なし</option>
+          <option value="shinkon">新婚世帯</option>
+          <option value="kosodate">子育て世帯</option>
+          <option value="uij">UIJターン移住</option>
+          <option value="single">単身</option>
+          <option value="senior">シニア・高齢者</option>
+        </select>
+      </label>
     </div>
     <div class="hint" id="addressRegionHint" style="margin-top:0;"></div>
-    <div class="row" id="addressSearchLinks" style="margin-top:8px;"></div>
+    <div class="row" id="addressSearchLinks" style="margin-top:8px; flex-wrap: wrap;"></div>
   </div>
 
   <div class="panel">
@@ -305,7 +315,7 @@
   }
 
   // ---------- App state ----------
-  var state = { quotes: [], properties: [], criteria: [], discounts: [], rooms: [], address: { notionId: null, current: "", destination: "" } };
+  var state = { quotes: [], properties: [], criteria: [], discounts: [], rooms: [], address: { notionId: null, current: "", destination: "", householdType: "" } };
   var expandedProps = {};
   var nextTempId = 1;
 
@@ -348,6 +358,14 @@
     return "https://www.google.com/search?q=" + encodeURIComponent(query + " " + keyword);
   }
 
+  var HOUSEHOLD_SUBSIDY_KEYWORDS = {
+    shinkon: { label: "新婚世帯向け補助金を検索", keyword: "結婚新生活支援事業 補助金" },
+    kosodate: { label: "子育て世帯向け助成金を検索", keyword: "子育て世帯 引っ越し 助成金" },
+    uij: { label: "UIJターン移住支援金を検索", keyword: "移住支援金 UIJターン" },
+    single: { label: "単身向け補助制度を検索", keyword: "単身 引っ越し 補助金" },
+    senior: { label: "高齢者向け助成制度を検索", keyword: "高齢者 引っ越し 助成金" }
+  };
+
   function addressRowToItem(row) {
     var pageId = extractPageId(row.url);
     return {
@@ -381,6 +399,7 @@
   function syncAddressInputs() {
     document.getElementById("currentAddress").value = state.address.current || "";
     document.getElementById("destAddress").value = state.address.destination || "";
+    document.getElementById("householdType").value = state.address.householdType || "";
   }
 
   function renderAddress() {
@@ -409,6 +428,17 @@
     companyLink.href = buildSearchUrl(region, "引っ越し業者");
     companyLink.textContent = "この地域の引っ越し業者を検索";
     linksWrap.appendChild(companyLink);
+
+    var householdInfo = HOUSEHOLD_SUBSIDY_KEYWORDS[state.address.householdType];
+    if (householdInfo) {
+      var householdLink = document.createElement("a");
+      householdLink.className = "search-link";
+      householdLink.target = "_blank";
+      householdLink.rel = "noopener noreferrer";
+      householdLink.href = buildSearchUrl(region, householdInfo.keyword);
+      householdLink.textContent = householdInfo.label;
+      linksWrap.appendChild(householdLink);
+    }
   }
 
   // ---------- Quotes ----------
@@ -1109,6 +1139,10 @@
       state.address.destination = document.getElementById("destAddress").value;
       renderAddress();
     });
+    document.getElementById("householdType").addEventListener("change", function () {
+      state.address.householdType = document.getElementById("householdType").value;
+      renderAddress();
+    });
 
     document.getElementById("addQuoteBtn").addEventListener("click", function () {
       var company = document.getElementById("quoteCompany").value.trim();
@@ -1233,6 +1267,7 @@
         state.discounts = results[3];
         state.rooms = results[4];
         state.address = results[5];
+        state.address.householdType = "";
         if (!state.discounts.length) {
           // 初回のみ、一般的なカテゴリを既定項目として用意する
           DEFAULT_DISCOUNT_ITEMS.forEach(function (name) {
