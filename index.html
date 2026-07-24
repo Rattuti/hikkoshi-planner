@@ -204,7 +204,17 @@
   <div class="panel">
     <h2>候補物件・住み心地判定</h2>
     <p class="desc">登録した候補同士の相対比較によるスコアです(絶対的な良し悪しの判定ではありません)。</p>
-    <div class="form-grid">
+
+    <div class="hint">希望条件(1回設定すれば、条件に合う物件検索リンクを自動生成します)</div>
+    <div class="form-grid" style="margin-top:6px;">
+      <label>エリア・沿線<input type="text" id="wishArea" placeholder="例: 東急田園都市線 三軒茶屋"></label>
+      <label>予算上限(万円/月)<input type="number" id="wishBudget" placeholder="例: 12"></label>
+      <label>間取り<input type="text" id="wishLayout" placeholder="例: 1LDK"></label>
+      <label>駅徒歩(分以内)<input type="number" id="wishStationMin" placeholder="例: 10"></label>
+    </div>
+    <div class="row" id="propertySearchLinks" style="margin-top:8px; flex-wrap: wrap;"></div>
+
+    <div class="form-grid" style="margin-top:14px;">
       <label>物件名<input type="text" id="propName" placeholder="例: ○○マンション101"></label>
       <label>家賃(円)<input type="number" id="propRent" placeholder="例: 85000"></label>
       <label>広さ(m²)<input type="number" id="propSize" placeholder="例: 45"></label>
@@ -384,6 +394,37 @@
 
   function buildSearchUrl(query, keyword) {
     return "https://www.google.com/search?q=" + encodeURIComponent(query + " " + keyword);
+  }
+
+  var PROPERTY_PORTAL_SITES = [
+    { name: "SUUMO", domain: "suumo.jp" },
+    { name: "アットホーム", domain: "athome.co.jp" },
+    { name: "LIFULL HOME'S", domain: "homes.co.jp" }
+  ];
+  function buildPropertyPortalSearchUrl(domain) {
+    var area = document.getElementById("wishArea").value.trim();
+    var budget = document.getElementById("wishBudget").value.trim();
+    var layout = document.getElementById("wishLayout").value.trim();
+    var stationMin = document.getElementById("wishStationMin").value.trim();
+    var parts = ["site:" + domain, "賃貸"];
+    if (area) parts.push(area);
+    if (budget) parts.push(budget + "万円以内");
+    if (layout) parts.push(layout);
+    if (stationMin) parts.push("徒歩" + stationMin + "分以内");
+    return "https://www.google.com/search?q=" + encodeURIComponent(parts.join(" "));
+  }
+  function renderPropertySearchLinks() {
+    var wrap = document.getElementById("propertySearchLinks");
+    wrap.innerHTML = "";
+    PROPERTY_PORTAL_SITES.forEach(function (site) {
+      var link = document.createElement("a");
+      link.className = "search-link";
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.href = buildPropertyPortalSearchUrl(site.domain);
+      link.textContent = site.name + "で候補物件を検索";
+      wrap.appendChild(link);
+    });
   }
 
   var HOUSEHOLD_SUBSIDY_KEYWORDS = {
@@ -1183,6 +1224,7 @@
     drawQuoteChart();
     renderCriteriaMasterList();
     renderProperties();
+    renderPropertySearchLinks();
     renderRoomList();
     drawRooms();
     renderDiscounts();
@@ -1209,6 +1251,10 @@
 
   function init() {
     seedDirectionAndSunlightSelects();
+
+    ["wishArea", "wishBudget", "wishLayout", "wishStationMin"].forEach(function (id) {
+      document.getElementById(id).addEventListener("input", renderPropertySearchLinks);
+    });
 
     document.getElementById("currentAddress").addEventListener("change", function () {
       state.address.current = document.getElementById("currentAddress").value.trim();
