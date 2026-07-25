@@ -262,6 +262,17 @@
     return m ? m[1] : null;
   }
 
+  // 複数値をテキストプロパティに保存する際のエンコード方式。
+  // JSON.stringify(配列)をそのままテキストプロパティに書き込むと、
+  // 保存時に空文字になって消えてしまう不具合を実機検証で確認したため、
+  // JSON形式を避け「||」区切りの単純なテキストで保存する。
+  function encodeList(arr) {
+    return (arr || []).join("||");
+  }
+  function decodeList(str) {
+    return str ? str.split("||").filter(function (s) { return s; }) : [];
+  }
+
   function setSyncStatus(text, isError) {
     var el = document.getElementById("syncStatus");
     el.textContent = text;
@@ -593,10 +604,7 @@
   // ---------- Properties (candidate housing) ----------
   function propRowToItem(row) {
     var pageId = extractPageId(row.url);
-    var customChecked = [];
-    if (row["カスタムチェック"]) {
-      try { customChecked = JSON.parse(row["カスタムチェック"]); } catch (e) { customChecked = []; }
-    }
+    var customChecked = decodeList(row["カスタムチェック"]);
     return {
       id: pageId, notionId: pageId,
       name: row["物件名"] || "",
@@ -615,7 +623,7 @@
     return {
       "物件名": p.name, "家賃": p.rent, "広さ_m2": p.size, "築年数": p.age,
       "駅徒歩分": p.stationMin, "階数": p.floor, "方角": p.direction, "日当たり": p.sunlight,
-      "カスタムチェック": JSON.stringify(p.customChecked || []), "決定ステータス": p.status
+      "カスタムチェック": encodeList(p.customChecked), "決定ステータス": p.status
     };
   }
   function loadProperties() {
@@ -893,7 +901,7 @@
               p.customChecked = p.customChecked.filter(function (n) { return n !== c.name; });
             }
             renderAll();
-            if (NOTION_ENABLED) notionUpdate(p.notionId, { "カスタムチェック": JSON.stringify(p.customChecked) });
+            if (NOTION_ENABLED) notionUpdate(p.notionId, { "カスタムチェック": encodeList(p.customChecked) });
           });
           var span = document.createElement("span"); span.textContent = c.name;
           row.appendChild(cb); row.appendChild(span);
