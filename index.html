@@ -451,23 +451,24 @@
     return {
       notionId: pageId,
       current: row["現住所"] || "",
-      destination: row["引っ越し先住所"] || ""
+      destination: row["引っ越し先住所"] || "",
+      householdType: row["世帯タイプ"] || ""
     };
   }
   function loadAddress() {
     return queryAllViewRows(DS.address.view).then(function (rows) {
-      return rows.length ? addressRowToItem(rows[0]) : { notionId: null, current: "", destination: "" };
+      return rows.length ? addressRowToItem(rows[0]) : { notionId: null, current: "", destination: "", householdType: "" };
     });
   }
   function saveAddress() {
     var a = state.address;
     if (!NOTION_ENABLED) return;
     if (a.notionId) {
-      notionUpdate(a.notionId, { "現住所": a.current || "(未入力)", "引っ越し先住所": a.destination }).catch(function (err) {
+      notionUpdate(a.notionId, { "現住所": a.current || "(未入力)", "引っ越し先住所": a.destination, "世帯タイプ": a.householdType || "" }).catch(function (err) {
         setSyncStatus("住所の同期に失敗しました(" + (err && err.code) + ")", true);
       });
     } else {
-      notionCreate(DS.address.id, { "現住所": a.current || "(未入力)", "引っ越し先住所": a.destination }).then(function (res) {
+      notionCreate(DS.address.id, { "現住所": a.current || "(未入力)", "引っ越し先住所": a.destination, "世帯タイプ": a.householdType || "" }).then(function (res) {
         var created = res.payload && res.payload.pages && res.payload.pages[0];
         if (created && created.id) { a.notionId = created.id; }
       }).catch(function (err) {
@@ -1280,6 +1281,7 @@
     document.getElementById("householdType").addEventListener("change", function () {
       state.address.householdType = document.getElementById("householdType").value;
       renderAddress();
+      saveAddress();
     });
 
     document.getElementById("addQuoteBtn").addEventListener("click", function () {
@@ -1464,7 +1466,6 @@
         state.discounts = results[3];
         state.rooms = results[4];
         state.address = results[5];
-        state.address.householdType = "";
         if (!state.discounts.length) {
           // 初回のみ、一般的なカテゴリを既定項目として用意する
           DEFAULT_DISCOUNT_ITEMS.forEach(function (name) {
