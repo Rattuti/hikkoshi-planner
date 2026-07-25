@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>引っ越しプランナー</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
   :root {
     --bg: #f4f7f7;
@@ -141,9 +142,19 @@
     <div class="form-grid">
       <label>現住所<input type="text" id="currentAddress" placeholder="例: 東京都○○区○○1-2-3"></label>
       <label>引っ越し先住所<input type="text" id="destAddress" placeholder="例: 神奈川県○○市○○4-5-6"></label>
+      <label>世帯タイプ(補助金検索の絞り込み)
+        <select id="householdType">
+          <option value="">指定なし</option>
+          <option value="shinkon">新婚世帯</option>
+          <option value="kosodate">子育て世帯</option>
+          <option value="uij">UIJターン移住</option>
+          <option value="single">単身</option>
+          <option value="senior">シニア・高齢者</option>
+        </select>
+      </label>
     </div>
     <div class="hint" id="addressRegionHint" style="margin-top:0;"></div>
-    <div class="row" id="addressSearchLinks" style="margin-top:8px;"></div>
+    <div class="row" id="addressSearchLinks" style="margin-top:8px; flex-wrap: wrap;"></div>
   </div>
 
   <div class="panel">
@@ -153,12 +164,27 @@
       <label>業者名<input type="text" id="quoteCompany" placeholder="例: ○○引越センター"></label>
       <label>見積額(円)<input type="number" id="quoteAmount" placeholder="例: 65000"></label>
       <label>取得日<input type="date" id="quoteDate"></label>
+      <label>丁寧さ評価(1〜5・任意)
+        <select id="quoteCare">
+          <option value="">未評価</option>
+          <option value="1">1(粗い)</option>
+          <option value="2">2</option>
+          <option value="3">3(普通)</option>
+          <option value="4">4</option>
+          <option value="5">5(非常に丁寧)</option>
+        </select>
+      </label>
       <label>備考<input type="text" id="quoteNote" placeholder="任意"></label>
     </div>
-    <button type="button" id="addQuoteBtn">見積もりを追加</button>
+    <div class="hint" style="margin-top:4px;">見積書の写真から金額を読み取る(任意・精度は完全ではないため確認してください)</div>
+    <div class="row" style="margin-top:4px;">
+      <input type="file" id="quoteImageInput" accept="image/*">
+      <span class="hint" id="ocrStatus" style="margin:0;"></span>
+    </div>
+    <button type="button" id="addQuoteBtn" style="margin-top:10px;">見積もりを追加</button>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>業者名</th><th>見積額</th><th>取得日</th><th>備考</th><th></th></tr></thead>
+        <thead><tr><th>業者名</th><th>見積額</th><th>丁寧さ</th><th>取得日</th><th>備考</th><th></th></tr></thead>
         <tbody id="quoteBody"></tbody>
       </table>
     </div>
@@ -169,16 +195,26 @@
     <h2>費用の目安グラフ</h2>
     <p class="desc">上段は一般的な季節傾向の目安(参考情報・実際の価格ではありません)。下段は、あなたが記録した実際の見積もりの推移です。</p>
     <div class="hint" style="margin-top:0;">月別の混雑・価格帯の目安(相対レベル、1〜5)</div>
-    <canvas id="seasonChart" height="140"></canvas>
+    <canvas id="seasonChart" height="220"></canvas>
     <div class="hint">あなたの見積もり実績の推移(業者ごとに色分け)</div>
-    <canvas id="quoteChart" height="180"></canvas>
+    <canvas id="quoteChart" height="280"></canvas>
     <div class="legend" id="quoteChartLegend"></div>
   </div>
 
   <div class="panel">
     <h2>候補物件・住み心地判定</h2>
     <p class="desc">登録した候補同士の相対比較によるスコアです(絶対的な良し悪しの判定ではありません)。</p>
-    <div class="form-grid">
+
+    <div class="hint">希望条件(1回設定すれば、条件に合う物件検索リンクを自動生成します)</div>
+    <div class="form-grid" style="margin-top:6px;">
+      <label>エリア・沿線<input type="text" id="wishArea" placeholder="例: 東急田園都市線 三軒茶屋"></label>
+      <label>予算上限(万円/月)<input type="number" id="wishBudget" placeholder="例: 12"></label>
+      <label>間取り<input type="text" id="wishLayout" placeholder="例: 1LDK"></label>
+      <label>駅徒歩(分以内)<input type="number" id="wishStationMin" placeholder="例: 10"></label>
+    </div>
+    <div class="row" id="propertySearchLinks" style="margin-top:8px; flex-wrap: wrap;"></div>
+
+    <div class="form-grid" style="margin-top:14px;">
       <label>物件名<input type="text" id="propName" placeholder="例: ○○マンション101"></label>
       <label>家賃(円)<input type="number" id="propRent" placeholder="例: 85000"></label>
       <label>広さ(m²)<input type="number" id="propSize" placeholder="例: 45"></label>
@@ -187,6 +223,7 @@
       <label>階数<input type="number" id="propFloor" placeholder="例: 3"></label>
       <label>方角<select id="propDirection"></select></label>
       <label>日当たり<select id="propSunlight"></select></label>
+      <label>建物構造<select id="propStructure"></select></label>
     </div>
     <button type="button" id="addPropBtn">候補物件を追加</button>
 
@@ -196,10 +233,12 @@
       <input type="text" id="criteriaInput" placeholder="項目を追加(例: 収納が多い)">
       <button type="button" class="secondary" id="addCriteriaBtn">追加</button>
     </div>
+    <div class="hint" style="margin-top:8px;">よく使う項目(タップで追加):</div>
+    <div class="row" id="criteriaPresetRow" style="margin-top:4px; flex-wrap: wrap;"></div>
 
     <div class="table-wrap">
       <table>
-        <thead><tr><th>物件名</th><th>家賃</th><th>広さ</th><th>築年数</th><th>駅徒歩</th><th>方角/日当たり</th><th>スコア</th><th>ステータス</th><th>詳細</th><th></th></tr></thead>
+        <thead><tr><th>物件名</th><th>家賃</th><th>広さ</th><th>築年数</th><th>駅徒歩</th><th>方角/日当たり</th><th>構造</th><th>スコア</th><th>ステータス</th><th>詳細</th><th></th></tr></thead>
         <tbody id="propBody"></tbody>
       </table>
     </div>
@@ -316,13 +355,16 @@
   }
 
   // ---------- App state ----------
-  var state = { quotes: [], properties: [], criteria: [], discounts: [], rooms: [], address: { notionId: null, current: "", destination: "" } };
+  var state = { quotes: [], properties: [], criteria: [], discounts: [], rooms: [], address: { notionId: null, current: "", destination: "", householdType: "" } };
   var expandedProps = {};
   var nextTempId = 1;
 
   var DIRECTION_OPTIONS = ["北", "北東", "東", "南東", "南", "南西", "西", "北西", "不明"];
   var SUNLIGHT_OPTIONS = ["良い", "普通", "悪い"];
   var SUNLIGHT_SCORE = { "良い": 100, "普通": 60, "悪い": 20 };
+  var STRUCTURE_OPTIONS = ["木造", "軽量鉄骨造", "重量鉄骨造", "鉄筋コンクリート(RC)", "鉄骨鉄筋コンクリート(SRC)", "不明"];
+  // 防音性・耐久性の目安としての相対スコア(絶対評価ではなく参考値)
+  var STRUCTURE_SCORE = { "木造": 40, "軽量鉄骨造": 55, "重量鉄骨造": 70, "鉄筋コンクリート(RC)": 90, "鉄骨鉄筋コンクリート(SRC)": 95, "不明": 60 };
   var PROP_STATUS_OPTIONS = ["検討中", "有力候補", "見送り"];
   var PROP_STATUS_COLOR = { "検討中": "var(--consider)", "有力候補": "var(--keep)", "見送り": "var(--letgo)" };
   var DISCOUNT_STATUS_OPTIONS = ["未検討", "検討中", "活用予定", "対象外"];
@@ -355,9 +397,54 @@
     return (m && m[0]) ? m[0] : trimmed;
   }
 
+  var BULK_QUOTE_SITES = [
+    { name: "SUUMO引越し見積もり", url: "https://hikkoshi.suumo.jp/" },
+    { name: "ズバット引越し比較", url: "https://www.zba.jp/hikkoshi/" },
+    { name: "引越し侍", url: "https://hikkoshizamurai.jp/" }
+  ];
+
   function buildSearchUrl(query, keyword) {
     return "https://www.google.com/search?q=" + encodeURIComponent(query + " " + keyword);
   }
+
+  var PROPERTY_PORTAL_SITES = [
+    { name: "SUUMO", domain: "suumo.jp" },
+    { name: "アットホーム", domain: "athome.co.jp" },
+    { name: "LIFULL HOME'S", domain: "homes.co.jp" }
+  ];
+  function buildPropertyPortalSearchUrl(domain) {
+    var area = document.getElementById("wishArea").value.trim();
+    var budget = document.getElementById("wishBudget").value.trim();
+    var layout = document.getElementById("wishLayout").value.trim();
+    var stationMin = document.getElementById("wishStationMin").value.trim();
+    var parts = ["site:" + domain, "賃貸"];
+    if (area) parts.push(area);
+    if (budget) parts.push(budget + "万円以内");
+    if (layout) parts.push(layout);
+    if (stationMin) parts.push("徒歩" + stationMin + "分以内");
+    return "https://www.google.com/search?q=" + encodeURIComponent(parts.join(" "));
+  }
+  function renderPropertySearchLinks() {
+    var wrap = document.getElementById("propertySearchLinks");
+    wrap.innerHTML = "";
+    PROPERTY_PORTAL_SITES.forEach(function (site) {
+      var link = document.createElement("a");
+      link.className = "search-link";
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.href = buildPropertyPortalSearchUrl(site.domain);
+      link.textContent = site.name + "で候補物件を検索";
+      wrap.appendChild(link);
+    });
+  }
+
+  var HOUSEHOLD_SUBSIDY_KEYWORDS = {
+    shinkon: { label: "新婚世帯向け補助金を検索", keyword: "結婚新生活支援事業 補助金" },
+    kosodate: { label: "子育て世帯向け助成金を検索", keyword: "子育て世帯 引っ越し 助成金" },
+    uij: { label: "UIJターン移住支援金を検索", keyword: "移住支援金 UIJターン" },
+    single: { label: "単身向け補助制度を検索", keyword: "単身 引っ越し 補助金" },
+    senior: { label: "高齢者向け助成制度を検索", keyword: "高齢者 引っ越し 助成金" }
+  };
 
   function addressRowToItem(row) {
     var pageId = extractPageId(row.url);
@@ -392,6 +479,7 @@
   function syncAddressInputs() {
     document.getElementById("currentAddress").value = state.address.current || "";
     document.getElementById("destAddress").value = state.address.destination || "";
+    document.getElementById("householdType").value = state.address.householdType || "";
   }
 
   function renderAddress() {
@@ -420,6 +508,34 @@
     companyLink.href = buildSearchUrl(region, "引っ越し業者");
     companyLink.textContent = "この地域の引っ越し業者を検索";
     linksWrap.appendChild(companyLink);
+
+    var householdInfo = HOUSEHOLD_SUBSIDY_KEYWORDS[state.address.householdType];
+    if (householdInfo) {
+      var householdLink = document.createElement("a");
+      householdLink.className = "search-link";
+      householdLink.target = "_blank";
+      householdLink.rel = "noopener noreferrer";
+      householdLink.href = buildSearchUrl(region, householdInfo.keyword);
+      householdLink.textContent = householdInfo.label;
+      linksWrap.appendChild(householdLink);
+    }
+
+    var bulkHint = document.createElement("div");
+    bulkHint.className = "hint";
+    bulkHint.style.width = "100%";
+    bulkHint.style.margin = "8px 0 0";
+    bulkHint.textContent = "業者ごとに探す手間を省きたい場合は、下記の一括見積もりサイトで住所を1回入力すると複数社からまとめて見積もりが届きます(各社サイトへの入力が必要です):";
+    linksWrap.appendChild(bulkHint);
+
+    BULK_QUOTE_SITES.forEach(function (site) {
+      var siteLink = document.createElement("a");
+      siteLink.className = "search-link";
+      siteLink.target = "_blank";
+      siteLink.rel = "noopener noreferrer";
+      siteLink.href = site.url;
+      siteLink.textContent = site.name + "で一括見積もり";
+      linksWrap.appendChild(siteLink);
+    });
   }
 
   // ---------- Quotes ----------
@@ -430,11 +546,12 @@
       company: row["業者名"] || "",
       amount: typeof row["見積額"] === "number" ? row["見積額"] : null,
       date: row["date:取得日:start"] || "",
+      care: typeof row["丁寧さ"] === "number" ? row["丁寧さ"] : null,
       note: row["備考"] || ""
     };
   }
   function quoteToProps(q) {
-    var props = { "業者名": q.company, "見積額": q.amount, "備考": q.note || "" };
+    var props = { "業者名": q.company, "見積額": q.amount, "丁寧さ": (q.care || q.care === 0) ? q.care : null, "備考": q.note || "" };
     if (q.date) props["date:取得日:start"] = q.date;
     return props;
   }
@@ -450,6 +567,7 @@
     var sorted = state.quotes.slice().sort(function (a, b) { return (a.amount || Infinity) - (b.amount || Infinity); });
     document.getElementById("quoteEmpty").style.display = sorted.length ? "none" : "block";
     var cheapest = sorted.length ? sorted[0].amount : null;
+    var bestCare = sorted.reduce(function (m, q) { return (q.care && (!m || q.care > m)) ? q.care : m; }, null);
 
     sorted.forEach(function (q) {
       var tr = document.createElement("tr");
@@ -463,6 +581,13 @@
         tag.textContent = "最安";
         tdCompany.appendChild(tag);
       }
+      if (bestCare !== null && q.care === bestCare) {
+        var careTag = document.createElement("span");
+        careTag.className = "cheapest-tag";
+        careTag.style.marginLeft = "4px";
+        careTag.textContent = "最も丁寧";
+        tdCompany.appendChild(careTag);
+      }
 
       var tdAmount = document.createElement("td");
       tdAmount.setAttribute("data-label", "見積額");
@@ -474,6 +599,10 @@
         diff.textContent = "(+" + formatYen(q.amount - cheapest) + ")";
         tdAmount.appendChild(diff);
       }
+
+      var tdCare = document.createElement("td");
+      tdCare.setAttribute("data-label", "丁寧さ");
+      tdCare.textContent = q.care ? "★".repeat(q.care) + "☆".repeat(5 - q.care) : "未評価";
 
       var tdDate = document.createElement("td");
       tdDate.setAttribute("data-label", "取得日");
@@ -495,7 +624,7 @@
       });
       tdRm.appendChild(rmBtn);
 
-      tr.appendChild(tdCompany); tr.appendChild(tdAmount); tr.appendChild(tdDate); tr.appendChild(tdNote); tr.appendChild(tdRm);
+      tr.appendChild(tdCompany); tr.appendChild(tdAmount); tr.appendChild(tdCare); tr.appendChild(tdDate); tr.appendChild(tdNote); tr.appendChild(tdRm);
       body.appendChild(tr);
     });
   }
@@ -615,6 +744,7 @@
       floor: typeof row["階数"] === "number" ? row["階数"] : null,
       direction: row["方角"] || "不明",
       sunlight: row["日当たり"] || "普通",
+      structure: row["建物構造"] || "不明",
       customChecked: customChecked,
       status: row["決定ステータス"] || "検討中"
     };
@@ -623,6 +753,7 @@
     return {
       "物件名": p.name, "家賃": p.rent, "広さ_m2": p.size, "築年数": p.age,
       "駅徒歩分": p.stationMin, "階数": p.floor, "方角": p.direction, "日当たり": p.sunlight,
+      "建物構造": p.structure,
       "カスタムチェック": encodeList(p.customChecked), "決定ステータス": p.status
     };
   }
@@ -666,7 +797,8 @@
       var criteriaTotal = state.criteria.length;
       var criteriaScore = criteriaTotal > 0 ? ((p.customChecked || []).length / criteriaTotal) * 100 : 50;
       var sunScore = SUNLIGHT_SCORE[p.sunlight] || 60;
-      var total = (rentScore(p.rent) + sizeScore(p.size) + ageScore(p.age) + stationScore(p.stationMin) + sunScore + criteriaScore) / 6;
+      var structureScore = STRUCTURE_SCORE[p.structure] || 60;
+      var total = (rentScore(p.rent) + sizeScore(p.size) + ageScore(p.age) + stationScore(p.stationMin) + sunScore + structureScore + criteriaScore) / 7;
       scores[p.id] = Math.round(Math.max(0, Math.min(100, total)));
     });
     return scores;
@@ -739,6 +871,9 @@
       var tdDir = document.createElement("td");
       tdDir.setAttribute("data-label", "方角/日当たり"); tdDir.textContent = p.direction + " / " + p.sunlight;
 
+      var tdStructure = document.createElement("td");
+      tdStructure.setAttribute("data-label", "構造"); tdStructure.textContent = p.structure || "不明";
+
       var tdScore = document.createElement("td");
       tdScore.setAttribute("data-label", "スコア");
       var scoreVal = scores[p.id] || 0;
@@ -798,7 +933,7 @@
       tdRm.appendChild(rmBtn);
 
       tr.appendChild(tdName); tr.appendChild(tdRent); tr.appendChild(tdSize); tr.appendChild(tdAge);
-      tr.appendChild(tdStation); tr.appendChild(tdDir); tr.appendChild(tdScore); tr.appendChild(tdStatus);
+      tr.appendChild(tdStation); tr.appendChild(tdDir); tr.appendChild(tdStructure); tr.appendChild(tdScore); tr.appendChild(tdStatus);
       tr.appendChild(tdExpand); tr.appendChild(tdRm);
       body.appendChild(tr);
 
@@ -806,7 +941,7 @@
         var detailRow = document.createElement("tr");
         detailRow.className = "detail-row";
         var detailCell = document.createElement("td");
-        detailCell.colSpan = 10;
+        detailCell.colSpan = 11;
 
         var editGrid = document.createElement("div");
         editGrid.className = "form-grid";
@@ -871,6 +1006,21 @@
         });
         sunLabel.appendChild(sunSelect);
         editGrid.appendChild(sunLabel);
+
+        var structLabel = document.createElement("label");
+        structLabel.textContent = "建物構造";
+        var structSelectEdit = document.createElement("select");
+        STRUCTURE_OPTIONS.forEach(function (s) {
+          var opt = document.createElement("option"); opt.value = s; opt.textContent = s;
+          if (s === p.structure) opt.selected = true;
+          structSelectEdit.appendChild(opt);
+        });
+        structSelectEdit.addEventListener("change", function () {
+          p.structure = structSelectEdit.value; renderAll();
+          if (NOTION_ENABLED) notionUpdate(p.notionId, { "建物構造": p.structure });
+        });
+        structLabel.appendChild(structSelectEdit);
+        editGrid.appendChild(structLabel);
 
         detailCell.appendChild(editGrid);
 
@@ -1082,6 +1232,7 @@
     drawQuoteChart();
     renderCriteriaMasterList();
     renderProperties();
+    renderPropertySearchLinks();
     renderRoomList();
     drawRooms();
     renderDiscounts();
@@ -1099,10 +1250,19 @@
       var opt = document.createElement("option"); opt.value = s; opt.textContent = s;
       sunSelect.appendChild(opt);
     });
+    var structSelect = document.getElementById("propStructure");
+    STRUCTURE_OPTIONS.forEach(function (s) {
+      var opt = document.createElement("option"); opt.value = s; opt.textContent = s;
+      structSelect.appendChild(opt);
+    });
   }
 
   function init() {
     seedDirectionAndSunlightSelects();
+
+    ["wishArea", "wishBudget", "wishLayout", "wishStationMin"].forEach(function (id) {
+      document.getElementById(id).addEventListener("input", renderPropertySearchLinks);
+    });
 
     document.getElementById("currentAddress").addEventListener("change", function () {
       state.address.current = document.getElementById("currentAddress").value.trim();
@@ -1117,22 +1277,31 @@
       state.address.destination = document.getElementById("destAddress").value;
       renderAddress();
     });
+    document.getElementById("householdType").addEventListener("change", function () {
+      state.address.householdType = document.getElementById("householdType").value;
+      renderAddress();
+    });
 
     document.getElementById("addQuoteBtn").addEventListener("click", function () {
       var company = document.getElementById("quoteCompany").value.trim();
       var amountRaw = document.getElementById("quoteAmount").value;
       if (!company || amountRaw === "") return;
+      var careRaw = document.getElementById("quoteCare").value;
       var q = {
         id: "temp-" + (nextTempId++), notionId: null,
         company: company, amount: parseFloat(amountRaw),
         date: document.getElementById("quoteDate").value || "",
+        care: careRaw === "" ? null : parseInt(careRaw, 10),
         note: document.getElementById("quoteNote").value.trim()
       };
       state.quotes.push(q);
       document.getElementById("quoteCompany").value = "";
       document.getElementById("quoteAmount").value = "";
       document.getElementById("quoteDate").value = "";
+      document.getElementById("quoteCare").value = "";
       document.getElementById("quoteNote").value = "";
+      document.getElementById("quoteImageInput").value = "";
+      document.getElementById("ocrStatus").textContent = "";
       renderAll();
       if (NOTION_ENABLED) {
         notionCreate(DS.quotes.id, quoteToProps(q)).then(function (res) {
@@ -1142,6 +1311,46 @@
           setSyncStatus("見積もりの追加の同期に失敗しました(" + (err && err.code) + ")", true);
         });
       }
+    });
+
+    // ---------- 見積書画像からの金額読み取り(OCR、精度は完全ではないため候補表示のみ) ----------
+    function extractYenCandidates(text) {
+      var matches = [];
+      var re1 = /([0-9][0-9,]{2,})\s*円/g;
+      var re2 = /¥\s*([0-9][0-9,]{2,})/g;
+      var m;
+      while ((m = re1.exec(text))) matches.push(parseInt(m[1].replace(/,/g, ""), 10));
+      while ((m = re2.exec(text))) matches.push(parseInt(m[1].replace(/,/g, ""), 10));
+      return matches.filter(function (n) { return !isNaN(n) && n >= 1000 && n <= 5000000; });
+    }
+    document.getElementById("quoteImageInput").addEventListener("change", function (e) {
+      var file = e.target.files && e.target.files[0];
+      var statusEl = document.getElementById("ocrStatus");
+      if (!file) return;
+      if (typeof Tesseract === "undefined") {
+        statusEl.textContent = "OCRライブラリの読み込みに失敗しました(通信環境をご確認ください)";
+        return;
+      }
+      statusEl.textContent = "画像を読み取り中...(数十秒かかる場合があります)";
+      var reader = new FileReader();
+      reader.onload = function () {
+        Tesseract.recognize(reader.result, "jpn+eng")
+          .then(function (result) {
+            var text = (result && result.data && result.data.text) || "";
+            var candidates = extractYenCandidates(text);
+            if (candidates.length) {
+              var best = Math.max.apply(null, candidates);
+              document.getElementById("quoteAmount").value = best;
+              statusEl.textContent = "候補金額: ¥" + best.toLocaleString() + "(自動読み取りのため、必ず見積書と照らし合わせて確認・修正してください)";
+            } else {
+              statusEl.textContent = "金額らしき数値を読み取れませんでした。手入力してください。";
+            }
+          })
+          .catch(function () {
+            statusEl.textContent = "読み取りに失敗しました。手入力してください。";
+          });
+      };
+      reader.readAsDataURL(file);
     });
 
     document.getElementById("addPropBtn").addEventListener("click", function () {
@@ -1155,6 +1364,7 @@
         stationMin: numOrNull("propStation"), floor: numOrNull("propFloor"),
         direction: document.getElementById("propDirection").value || "不明",
         sunlight: document.getElementById("propSunlight").value || "普通",
+        structure: document.getElementById("propStructure").value || "不明",
         customChecked: [], status: "検討中"
       };
       state.properties.push(p);
@@ -1172,13 +1382,11 @@
       }
     });
 
-    document.getElementById("addCriteriaBtn").addEventListener("click", function () {
-      var input = document.getElementById("criteriaInput");
-      var name = input.value.trim();
+    function addCriterion(name) {
+      name = (name || "").trim();
       if (!name || state.criteria.some(function (c) { return c.name === name; })) return;
       var c = { id: "temp-" + (nextTempId++), notionId: null, name: name };
       state.criteria.push(c);
-      input.value = "";
       renderAll();
       if (NOTION_ENABLED) {
         notionCreate(DS.criteria.id, { "項目名": name }).then(function (res) {
@@ -1188,6 +1396,21 @@
           setSyncStatus("カスタム項目の追加の同期に失敗しました(" + (err && err.code) + ")", true);
         });
       }
+    }
+    document.getElementById("addCriteriaBtn").addEventListener("click", function () {
+      var input = document.getElementById("criteriaInput");
+      addCriterion(input.value);
+      input.value = "";
+    });
+
+    var CRITERIA_PRESETS = ["近くに児童館がある", "近くに図書館がある", "近くに公園がある", "近くにスーパーがある"];
+    var presetRow = document.getElementById("criteriaPresetRow");
+    CRITERIA_PRESETS.forEach(function (name) {
+      var btn = document.createElement("button");
+      btn.type = "button"; btn.className = "secondary";
+      btn.textContent = "+ " + name;
+      btn.addEventListener("click", function () { addCriterion(name); });
+      presetRow.appendChild(btn);
     });
 
     document.getElementById("addRoomBtn").addEventListener("click", function () {
@@ -1241,6 +1464,7 @@
         state.discounts = results[3];
         state.rooms = results[4];
         state.address = results[5];
+        state.address.householdType = "";
         if (!state.discounts.length) {
           // 初回のみ、一般的なカテゴリを既定項目として用意する
           DEFAULT_DISCOUNT_ITEMS.forEach(function (name) {
