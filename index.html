@@ -59,16 +59,11 @@
   }
   .search-link:hover { border-color: var(--accent); }
 
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 4px; }
-  .stat { background: var(--bg); border-radius: 8px; padding: 12px 14px; }
-  .stat .label { font-size: 0.78rem; color: var(--muted); }
-  .stat .value { font-size: 1.2rem; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
-
   .table-wrap { max-height: 420px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 10px; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
-  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.86rem; table-layout: fixed; }
+  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--border); white-space: normal; overflow-wrap: break-word; }
   th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
-  td.name-cell { white-space: normal; max-width: 180px; font-weight: 500; }
+  td.name-cell { white-space: normal; font-weight: 500; }
   .badge {
     display: inline-flex; align-items: center; gap: 5px;
     padding: 3px 10px; border-radius: 999px; font-size: 0.78rem; color: #fff; font-weight: 600;
@@ -93,12 +88,22 @@
   .score-bar-fill { height: 100%; border-radius: 999px; }
 
   canvas { max-width: 100%; }
+  #roomCanvas { cursor: grab; touch-action: none; }
+  #roomCanvas:active { cursor: grabbing; }
   .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; font-size: 0.8rem; }
   .legend-item { display: flex; align-items: center; gap: 6px; }
   .swatch { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
 
   .room-list { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; }
-  .room-tag { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 0.82rem; }
+  .room-tag { display: flex; align-items: center; gap: 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 0.82rem; flex-wrap: wrap; }
+  .room-tag input[type=text] { width: 96px; padding: 3px 6px; font-size: 0.8rem; }
+  .room-tag input[type=number] { width: 54px; padding: 3px 6px; font-size: 0.8rem; }
+  .room-tag .dim-x { color: var(--muted); font-size: 0.78rem; }
+  .poly-editor { display: flex; flex-direction: column; gap: 6px; width: 100%; margin: 4px 0; }
+  .poly-preview { border: 1px solid var(--border); border-radius: 6px; background: var(--panel); }
+  .poly-point-list { display: flex; flex-direction: column; gap: 4px; }
+  .poly-point-row { display: flex; align-items: center; gap: 4px; }
+  .poly-point-row input[type=number] { width: 56px; padding: 3px 6px; font-size: 0.78rem; }
 
   /* mobile: tables become stacked cards */
   @media (max-width: 600px) {
@@ -184,6 +189,10 @@
     <button type="button" id="addQuoteBtn" style="margin-top:10px;">見積もりを追加</button>
     <div class="table-wrap">
       <table>
+        <colgroup>
+          <col style="width:26%"><col style="width:16%"><col style="width:12%">
+          <col style="width:15%"><col style="width:21%"><col style="width:10%">
+        </colgroup>
         <thead><tr><th>業者名</th><th>見積額</th><th>丁寧さ</th><th>取得日</th><th>備考</th><th></th></tr></thead>
         <tbody id="quoteBody"></tbody>
       </table>
@@ -238,6 +247,11 @@
 
     <div class="table-wrap">
       <table>
+        <colgroup>
+          <col style="width:14%"><col style="width:8%"><col style="width:7%"><col style="width:7%">
+          <col style="width:7%"><col style="width:9%"><col style="width:10%"><col style="width:12%">
+          <col style="width:12%"><col style="width:9%"><col style="width:5%">
+        </colgroup>
         <thead><tr><th>物件名</th><th>家賃</th><th>広さ</th><th>築年数</th><th>駅徒歩</th><th>方角/日当たり</th><th>構造</th><th>スコア</th><th>ステータス</th><th>詳細</th><th></th></tr></thead>
         <tbody id="propBody"></tbody>
       </table>
@@ -256,6 +270,12 @@
     </div>
     <button type="button" id="addRoomBtn">部屋を追加</button>
     <canvas id="roomCanvas" height="220" style="margin-top:14px;"></canvas>
+    <div class="row" style="margin-top:8px;">
+      <button type="button" class="secondary" id="roomRotateLeftBtn">⟲ 回転</button>
+      <button type="button" class="secondary" id="roomRotateRightBtn">⟳ 回転</button>
+      <button type="button" class="secondary" id="roomResetViewBtn">表示をリセット</button>
+    </div>
+    <p class="hint" style="margin-top:6px;">ドラッグ(スマホはタップしたまま移動)すると表示位置を動かせます。枠外に見切れる場合は回転・移動・リセットを試してください。</p>
     <div class="room-list" id="roomList"></div>
   </div>
 
@@ -275,15 +295,117 @@
   "use strict";
 
   // ---------- Notion sync ----------
+  // ---------- Notion bridge shim ----------
+  // window.claude.mcp が存在しない環境(Artifactではなくローカルファイル等として
+  // 開かれた場合)でのみ、Cloudflare Worker(notion-bridge)経由でNotion側の
+  // データを読み書きする互換シムを定義する。window.claude.mcp.callTool(server,
+  // tool, input) と同じ形を再現し、アプリ本体のコードからは区別なく呼べるようにする。
+  if (!(window.claude && window.claude.mcp)) {
+    (function () {
+      var BRIDGE_BASE = "https://notion-bridge.rattuti.workers.dev";
+      var APP_KEY_STORAGE = "notion_bridge_key";
+      // ビューURL→DB IDの対応は、下で定義するDS(データソース定義)から都度引く。
+      // callToolは非同期に呼ばれるため、この時点でDSがまだ未代入でも問題ない。
+      function dataSourceIdForView(viewUrl) {
+        var keys = Object.keys(DS);
+        for (var i = 0; i < keys.length; i++) {
+          if (DS[keys[i]].view === viewUrl) return DS[keys[i]].id;
+        }
+        return null;
+      }
+
+      // notion-query-database-view/notion-create-pagesで取得・作成した各ページIDが
+      // どのデータソース(DB)に属するかを控えておく。notion-update-pageはpage_idしか
+      // 受け取らないため、更新時にこの対応表からdataSourceIdを引く。
+      // Workerが返すIDはハイフン付きだが、アプリ側はextractPageId()でハイフンなしの
+      // 32桁hexに変換した値をnotionIdとして保持するため、キーは常にハイフンを
+      // 除去して正規化してから読み書きする。
+      var pageDataSourceMap = {};
+      function normalizeId(id) {
+        return (id || "").replace(/-/g, "");
+      }
+
+      function getAppKey() {
+        var key = localStorage.getItem(APP_KEY_STORAGE);
+        if (!key) {
+          key = window.prompt("Notion連携用のアプリキーを入力してください");
+          if (key) localStorage.setItem(APP_KEY_STORAGE, key);
+        }
+        return key;
+      }
+
+      function bridgeFetch(path, body) {
+        var key = getAppKey();
+        return fetch(BRIDGE_BASE + path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-App-Key": key || "" },
+          body: JSON.stringify(body)
+        }).then(function (res) {
+          if (res.status === 401) {
+            localStorage.removeItem(APP_KEY_STORAGE);
+            return Promise.reject({ code: "unauthorized", message: "アプリキーが正しくありません" });
+          }
+          if (!res.ok) {
+            return Promise.reject({ code: "http_" + res.status, message: "Notion連携サーバーへの通信に失敗しました" });
+          }
+          return res.json();
+        });
+      }
+
+      // bridgeFetchはWorkerの生レスポンス({results,...}や{pages:[...]}等)を
+      // そのまま返す。window.claude.mcp.callToolの実際の戻り値は{payload: ...}
+      // で包まれた形のため、ここで同じ形に包み直してからアプリ本体に返す。
+      function callTool(server, tool, input) {
+        if (tool === "notion-query-database-view") {
+          var queryDataSourceId = dataSourceIdForView(input.view_url);
+          var queryBody = { dataSourceId: queryDataSourceId, page_size: input.page_size };
+          if (input.start_cursor) queryBody.start_cursor = input.start_cursor;
+          return bridgeFetch("/query", queryBody).then(function (raw) {
+            var results = raw.results || [];
+            results.forEach(function (row) {
+              if (row && row.id) pageDataSourceMap[normalizeId(row.id)] = queryDataSourceId;
+            });
+            return { payload: raw };
+          });
+        }
+        if (tool === "notion-create-pages") {
+          var createDataSourceId = input.parent && input.parent.data_source_id;
+          var page = input.pages && input.pages[0];
+          return bridgeFetch("/create", {
+            dataSourceId: createDataSourceId,
+            properties: page && page.properties
+          }).then(function (raw) {
+            var created = raw.pages && raw.pages[0];
+            if (created && created.id) pageDataSourceMap[normalizeId(created.id)] = createDataSourceId;
+            return { payload: raw };
+          });
+        }
+        if (tool === "notion-update-page") {
+          return bridgeFetch("/update", {
+            pageId: input.page_id,
+            dataSourceId: pageDataSourceMap[normalizeId(input.page_id)],
+            properties: input.properties
+          }).then(function (raw) {
+            return { payload: raw };
+          });
+        }
+        return Promise.reject({ code: "unsupported_tool", message: "未対応のツールです: " + tool });
+      }
+
+      window.claude = window.claude || {};
+      window.claude.mcp = { callTool: callTool };
+    })();
+  }
+
   var NOTION_ENABLED = !!(window.claude && window.claude.mcp);
   var NOTION_SERVER = "Notion";
   var DS = {
-    quotes: { id: "a11cca18-d7d9-4ff9-b5cf-54b2cb9e5cd5", view: "view://f9c7e11e-7c2a-41e2-b78e-19cd6aa94cfa" },
-    properties: { id: "1b285caf-e337-41ae-9eb7-1ba086358372", view: "view://57542b2c-f98b-4f0d-b294-2f682a8e624b" },
-    criteria: { id: "9cc7a191-c5f9-46de-bbf5-e8604d67d400", view: "view://e72f2a54-0d87-4dc8-8c87-5aab5be02e2b" },
-    discounts: { id: "3b28a9c1-aa4c-4ca0-acda-959d2f6e24ba", view: "view://b2c02102-cc5a-40bd-8dc7-164c535f71d3" },
-    rooms: { id: "97bb6b5a-edc1-433b-9603-afe31d7327b1", view: "view://09e10453-bfbd-40b2-b48f-a5c43fa6a6a0" },
-    address: { id: "9fd275ee-43f4-44d8-88f5-8c7244c7aee5", view: "view://d062f130-657e-4c6c-ad4a-bc63de322a5b" }
+    quotes: { id: "d02f4dc7-0de1-42b6-91be-0751e304faa4", view: "view://f9c7e11e-7c2a-41e2-b78e-19cd6aa94cfa" },
+    properties: { id: "6e95fc7d-a73a-40c2-b453-943c6e402561", view: "view://57542b2c-f98b-4f0d-b294-2f682a8e624b" },
+    criteria: { id: "814214df-c9ec-47d2-9af8-09de433996d4", view: "view://e72f2a54-0d87-4dc8-8c87-5aab5be02e2b" },
+    discounts: { id: "ab20caa4-747f-4f7e-b264-8b51273a8c68", view: "view://b2c02102-cc5a-40bd-8dc7-164c535f71d3" },
+    rooms: { id: "1e5e1418-6349-4fa2-af66-b06cfa2627f9", view: "view://09e10453-bfbd-40b2-b48f-a5c43fa6a6a0" },
+    address: { id: "4db989ed-a4ab-43eb-9272-a254a1d58641", view: "view://d062f130-657e-4c6c-ad4a-bc63de322a5b" }
   };
 
   var DEFAULT_DISCOUNT_ITEMS = [
@@ -310,6 +432,20 @@
   }
   function decodeList(str) {
     return str ? str.split("||").filter(function (s) { return s; }) : [];
+  }
+
+  // 部屋の間取り(多角形の頂点リスト)のエンコード方式。同じ理由でJSON化は避け、
+  // 「x,y」を「||」区切りにした単純なテキストにする。
+  function encodePoints(points) {
+    return (points || []).map(function (p) { return p.x + "," + p.y; }).join("||");
+  }
+  function decodePoints(str) {
+    if (!str) return null;
+    var pts = str.split("||").map(function (s) {
+      var parts = s.split(",");
+      return { x: parseFloat(parts[0]), y: parseFloat(parts[1]) };
+    }).filter(function (p) { return !isNaN(p.x) && !isNaN(p.y); });
+    return pts.length >= 3 ? pts : null;
   }
 
   function setSyncStatus(text, isError) {
@@ -354,10 +490,107 @@
     return notionUpdate(pageId, { "削除済み": "__YES__" });
   }
 
+  function loadActiveRows(viewUrl, rowToItem) {
+    return queryAllViewRows(viewUrl).then(function (rows) {
+      return rows.filter(function (r) { return r["削除済み"] !== "__YES__"; }).map(rowToItem);
+    });
+  }
+
+  function notionUpdateSafe(pageId, properties, errorMessage) {
+    if (!NOTION_ENABLED) return;
+    var promise = notionUpdate(pageId, properties);
+    if (errorMessage) {
+      promise.catch(function (err) { setSyncStatus(errorMessage + "(" + (err && err.code) + ")", true); });
+    }
+  }
+
+  function createAndSync(dsId, properties, item, errorMessage) {
+    if (!NOTION_ENABLED) return;
+    notionCreate(dsId, properties).then(function (res) {
+      var created = res.payload && res.payload.pages && res.payload.pages[0];
+      if (created && created.id) { item.id = created.id; item.notionId = created.id; }
+    }).catch(function (err) {
+      setSyncStatus(errorMessage + "(" + (err && err.code) + ")", true);
+    });
+  }
+
+  function createRemoveButton(label, onRemove, notionId, errorMessage) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "rm-btn";
+    btn.textContent = label;
+    btn.addEventListener("click", function () {
+      onRemove();
+      renderAll();
+      if (NOTION_ENABLED) notionSoftDelete(notionId).catch(function (err) {
+        setSyncStatus(errorMessage + "(" + (err && err.code) + ")", true);
+      });
+    });
+    return btn;
+  }
+
+  function populateSelectOptions(select, options, selectedValue) {
+    options.forEach(function (v) {
+      var opt = document.createElement("option");
+      opt.value = v; opt.textContent = v;
+      if (v === selectedValue) opt.selected = true;
+      select.appendChild(opt);
+    });
+  }
+
+  function createSelect(options, selectedValue, onChange, className) {
+    var select = document.createElement("select");
+    if (className) select.className = className;
+    populateSelectOptions(select, options, selectedValue);
+    select.addEventListener("change", function () { onChange(select.value); });
+    return select;
+  }
+
+  function createStatusBadge(color) {
+    var badge = document.createElement("span");
+    badge.className = "badge";
+    badge.style.background = color || DEFAULT_BADGE_COLOR;
+    badge.textContent = " ";
+    return badge;
+  }
+
+  function createNameCell(text) {
+    var td = document.createElement("td");
+    td.className = "name-cell";
+    td.textContent = text;
+    return td;
+  }
+
+  function createDataCell(label, text) {
+    var td = document.createElement("td");
+    td.setAttribute("data-label", label);
+    td.textContent = text;
+    return td;
+  }
+
+  function nameExists(list, name) {
+    return list.some(function (item) { return item.name === name; });
+  }
+
+  function parseNumOrNull(v) {
+    return v === "" ? null : parseFloat(v);
+  }
+
+  function makeTempId() {
+    return TEMP_ID_PREFIX + (nextTempId++);
+  }
+
   // ---------- App state ----------
   var state = { quotes: [], properties: [], criteria: [], discounts: [], rooms: [], address: { notionId: null, current: "", destination: "", householdType: "" } };
   var expandedProps = {};
   var nextTempId = 1;
+  var TEMP_ID_PREFIX = "temp-";
+  var DEFAULT_BADGE_COLOR = "#999";
+  var PROP_DETAIL_COLSPAN = 11;
+  var SCORE_THRESHOLD_GOOD = 65;
+  var SCORE_THRESHOLD_FAIR = 40;
+  var YEN_MIN_PLAUSIBLE = 1000;
+  var YEN_MAX_PLAUSIBLE = 5000000;
 
   var DIRECTION_OPTIONS = ["北", "北東", "東", "南東", "南", "南西", "西", "北西", "不明"];
   var SUNLIGHT_OPTIONS = ["良い", "普通", "悪い"];
@@ -463,12 +696,11 @@
   function saveAddress() {
     var a = state.address;
     if (!NOTION_ENABLED) return;
+    var props = { "現住所": a.current || "(未入力)", "引っ越し先住所": a.destination, "世帯タイプ": a.householdType || "" };
     if (a.notionId) {
-      notionUpdate(a.notionId, { "現住所": a.current || "(未入力)", "引っ越し先住所": a.destination, "世帯タイプ": a.householdType || "" }).catch(function (err) {
-        setSyncStatus("住所の同期に失敗しました(" + (err && err.code) + ")", true);
-      });
+      notionUpdateSafe(a.notionId, props, "住所の同期に失敗しました");
     } else {
-      notionCreate(DS.address.id, { "現住所": a.current || "(未入力)", "引っ越し先住所": a.destination, "世帯タイプ": a.householdType || "" }).then(function (res) {
+      notionCreate(DS.address.id, props).then(function (res) {
         var created = res.payload && res.payload.pages && res.payload.pages[0];
         if (created && created.id) { a.notionId = created.id; }
       }).catch(function (err) {
@@ -557,9 +789,7 @@
     return props;
   }
   function loadQuotes() {
-    return queryAllViewRows(DS.quotes.view).then(function (rows) {
-      return rows.filter(function (r) { return r["削除済み"] !== "__YES__"; }).map(quoteRowToItem);
-    });
+    return loadActiveRows(DS.quotes.view, quoteRowToItem);
   }
 
   function renderQuotes() {
@@ -573,9 +803,7 @@
     sorted.forEach(function (q) {
       var tr = document.createElement("tr");
 
-      var tdCompany = document.createElement("td");
-      tdCompany.className = "name-cell";
-      tdCompany.textContent = q.company;
+      var tdCompany = createNameCell(q.company);
       if (cheapest !== null && q.amount === cheapest) {
         var tag = document.createElement("span");
         tag.className = "cheapest-tag";
@@ -590,9 +818,7 @@
         tdCompany.appendChild(careTag);
       }
 
-      var tdAmount = document.createElement("td");
-      tdAmount.setAttribute("data-label", "見積額");
-      tdAmount.textContent = formatYen(q.amount);
+      var tdAmount = createDataCell("見積額", formatYen(q.amount));
       if (cheapest !== null && q.amount !== cheapest) {
         var diff = document.createElement("span");
         diff.className = "hint";
@@ -601,28 +827,14 @@
         tdAmount.appendChild(diff);
       }
 
-      var tdCare = document.createElement("td");
-      tdCare.setAttribute("data-label", "丁寧さ");
-      tdCare.textContent = q.care ? "★".repeat(q.care) + "☆".repeat(5 - q.care) : "未評価";
-
-      var tdDate = document.createElement("td");
-      tdDate.setAttribute("data-label", "取得日");
-      tdDate.textContent = q.date || "-";
-
-      var tdNote = document.createElement("td");
-      tdNote.setAttribute("data-label", "備考");
-      tdNote.textContent = q.note || "-";
+      var tdCare = createDataCell("丁寧さ", q.care ? "★".repeat(q.care) + "☆".repeat(5 - q.care) : "未評価");
+      var tdDate = createDataCell("取得日", q.date || "-");
+      var tdNote = createDataCell("備考", q.note || "-");
 
       var tdRm = document.createElement("td");
-      var rmBtn = document.createElement("button");
-      rmBtn.className = "rm-btn"; rmBtn.type = "button"; rmBtn.textContent = "削除";
-      rmBtn.addEventListener("click", function () {
+      var rmBtn = createRemoveButton("削除", function () {
         state.quotes = state.quotes.filter(function (x) { return x.id !== q.id; });
-        renderAll();
-        if (NOTION_ENABLED) notionSoftDelete(q.notionId).catch(function (err) {
-          setSyncStatus("見積もりの削除の同期に失敗しました(" + (err && err.code) + ")", true);
-        });
-      });
+      }, q.notionId, "見積もりの削除の同期に失敗しました");
       tdRm.appendChild(rmBtn);
 
       tr.appendChild(tdCompany); tr.appendChild(tdAmount); tr.appendChild(tdCare); tr.appendChild(tdDate); tr.appendChild(tdNote); tr.appendChild(tdRm);
@@ -635,9 +847,18 @@
     var dpr = window.devicePixelRatio || 1;
     var cssWidth = canvas.clientWidth || canvas.parentElement.clientWidth || 400;
     var cssHeight = parseInt(canvas.getAttribute("height"), 10) || 160;
-    canvas.width = cssWidth * dpr;
-    canvas.height = cssHeight * dpr;
-    canvas.style.height = cssHeight + "px";
+    var neededWidth = Math.round(cssWidth * dpr);
+    var neededHeight = Math.round(cssHeight * dpr);
+    // canvas.width/heightへの書き込みはビットマップを破棄する重い操作で、
+    // ページのレイアウト再計算も引き起こす。roomCanvasはドラッグ中に
+    // pointermoveのたびdrawRooms()→setupCanvas()が呼ばれるため、実際に
+    // サイズが変わった時だけ書き込むようにしないと、ドラッグ中に毎フレーム
+    // レイアウトが揺れ、ページが勝手にスクロールする不具合につながっていた。
+    if (canvas.width !== neededWidth || canvas.height !== neededHeight) {
+      canvas.width = neededWidth;
+      canvas.height = neededHeight;
+      canvas.style.height = cssHeight + "px";
+    }
     var ctx = canvas.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssWidth, cssHeight);
@@ -759,9 +980,7 @@
     };
   }
   function loadProperties() {
-    return queryAllViewRows(DS.properties.view).then(function (rows) {
-      return rows.filter(function (r) { return r["削除済み"] !== "__YES__"; }).map(propRowToItem);
-    });
+    return loadActiveRows(DS.properties.view, propRowToItem);
   }
 
   function criteriaRowToItem(row) {
@@ -769,8 +988,8 @@
     return { id: pageId, notionId: pageId, name: row["項目名"] || "" };
   }
   function loadCriteria() {
-    return queryAllViewRows(DS.criteria.view).then(function (rows) {
-      return rows.filter(function (r) { return r["削除済み"] !== "__YES__"; }).map(criteriaRowToItem).filter(function (c) { return c.name; });
+    return loadActiveRows(DS.criteria.view, criteriaRowToItem).then(function (items) {
+      return items.filter(function (c) { return c.name; });
     });
   }
 
@@ -827,18 +1046,12 @@
       var label = document.createElement("span");
       label.textContent = c.name;
       label.style.fontSize = "0.85rem";
-      var rm = document.createElement("button");
-      rm.type = "button"; rm.className = "rm-btn"; rm.textContent = "✕";
-      rm.addEventListener("click", function () {
+      var rm = createRemoveButton("✕", function () {
         state.criteria = state.criteria.filter(function (x) { return x.id !== c.id; });
         state.properties.forEach(function (p) {
           p.customChecked = (p.customChecked || []).filter(function (n) { return n !== c.name; });
         });
-        renderAll();
-        if (NOTION_ENABLED) notionSoftDelete(c.notionId).catch(function (err) {
-          setSyncStatus("カスタム項目の削除の同期に失敗しました(" + (err && err.code) + ")", true);
-        });
-      });
+      }, c.notionId, "カスタム項目の削除の同期に失敗しました");
       chip.appendChild(label); chip.appendChild(rm);
       list.appendChild(chip);
     });
@@ -854,26 +1067,13 @@
     sorted.forEach(function (p) {
       var tr = document.createElement("tr");
 
-      var tdName = document.createElement("td");
-      tdName.className = "name-cell"; tdName.textContent = p.name;
-
-      var tdRent = document.createElement("td");
-      tdRent.setAttribute("data-label", "家賃"); tdRent.textContent = formatYen(p.rent);
-
-      var tdSize = document.createElement("td");
-      tdSize.setAttribute("data-label", "広さ"); tdSize.textContent = (p.size != null ? p.size + "m²" : "-");
-
-      var tdAge = document.createElement("td");
-      tdAge.setAttribute("data-label", "築年数"); tdAge.textContent = (p.age != null ? p.age + "年" : "-");
-
-      var tdStation = document.createElement("td");
-      tdStation.setAttribute("data-label", "駅徒歩"); tdStation.textContent = (p.stationMin != null ? p.stationMin + "分" : "-");
-
-      var tdDir = document.createElement("td");
-      tdDir.setAttribute("data-label", "方角/日当たり"); tdDir.textContent = p.direction + " / " + p.sunlight;
-
-      var tdStructure = document.createElement("td");
-      tdStructure.setAttribute("data-label", "構造"); tdStructure.textContent = p.structure || "不明";
+      var tdName = createNameCell(p.name);
+      var tdRent = createDataCell("家賃", formatYen(p.rent));
+      var tdSize = createDataCell("広さ", p.size != null ? p.size + "m²" : "-");
+      var tdAge = createDataCell("築年数", p.age != null ? p.age + "年" : "-");
+      var tdStation = createDataCell("駅徒歩", p.stationMin != null ? p.stationMin + "分" : "-");
+      var tdDir = createDataCell("方角/日当たり", p.direction + " / " + p.sunlight);
+      var tdStructure = createDataCell("構造", p.structure || "不明");
 
       var tdScore = document.createElement("td");
       tdScore.setAttribute("data-label", "スコア");
@@ -883,7 +1083,7 @@
       var scoreTrack = document.createElement("div"); scoreTrack.className = "score-bar-track";
       var scoreFill = document.createElement("div"); scoreFill.className = "score-bar-fill";
       scoreFill.style.width = scoreVal + "%";
-      scoreFill.style.background = scoreVal >= 65 ? "var(--keep)" : (scoreVal >= 40 ? "var(--consider)" : "var(--letgo)");
+      scoreFill.style.background = scoreVal >= SCORE_THRESHOLD_GOOD ? "var(--keep)" : (scoreVal >= SCORE_THRESHOLD_FAIR ? "var(--consider)" : "var(--letgo)");
       scoreTrack.appendChild(scoreFill);
       var scoreText = document.createElement("span"); scoreText.textContent = scoreVal;
       scoreWrap.appendChild(scoreTrack); scoreWrap.appendChild(scoreText);
@@ -891,25 +1091,16 @@
 
       var tdStatus = document.createElement("td");
       tdStatus.setAttribute("data-label", "ステータス");
-      var statusSelect = document.createElement("select");
-      statusSelect.className = "status-select";
-      PROP_STATUS_OPTIONS.forEach(function (s) {
-        var opt = document.createElement("option"); opt.value = s; opt.textContent = s;
-        if (s === p.status) opt.selected = true;
-        statusSelect.appendChild(opt);
-      });
-      statusSelect.addEventListener("change", function () {
-        p.status = statusSelect.value;
+      var statusWrap = document.createElement("div");
+      statusWrap.className = "row"; statusWrap.style.gap = "6px";
+      var statusSelect = createSelect(PROP_STATUS_OPTIONS, p.status, function (value) {
+        p.status = value;
         renderAll();
-        if (NOTION_ENABLED) notionUpdate(p.notionId, { "決定ステータス": p.status }).catch(function (err) {
-          setSyncStatus("物件ステータスの同期に失敗しました(" + (err && err.code) + ")", true);
-        });
-      });
-      tdStatus.appendChild(statusSelect);
-      var badgeDot = document.createElement("span");
-      badgeDot.className = "badge"; badgeDot.style.background = PROP_STATUS_COLOR[p.status] || "#999";
-      badgeDot.style.marginLeft = "6px"; badgeDot.textContent = " ";
-      tdStatus.appendChild(badgeDot);
+        notionUpdateSafe(p.notionId, { "決定ステータス": p.status }, "物件ステータスの同期に失敗しました");
+      }, "status-select");
+      var badgeDot = createStatusBadge(PROP_STATUS_COLOR[p.status]);
+      statusWrap.appendChild(statusSelect); statusWrap.appendChild(badgeDot);
+      tdStatus.appendChild(statusWrap);
 
       var tdExpand = document.createElement("td");
       var expandBtn = document.createElement("button");
@@ -922,15 +1113,9 @@
       tdExpand.appendChild(expandBtn);
 
       var tdRm = document.createElement("td");
-      var rmBtn = document.createElement("button");
-      rmBtn.className = "rm-btn"; rmBtn.type = "button"; rmBtn.textContent = "削除";
-      rmBtn.addEventListener("click", function () {
+      var rmBtn = createRemoveButton("削除", function () {
         state.properties = state.properties.filter(function (x) { return x.id !== p.id; });
-        renderAll();
-        if (NOTION_ENABLED) notionSoftDelete(p.notionId).catch(function (err) {
-          setSyncStatus("物件の削除の同期に失敗しました(" + (err && err.code) + ")", true);
-        });
-      });
+      }, p.notionId, "物件の削除の同期に失敗しました");
       tdRm.appendChild(rmBtn);
 
       tr.appendChild(tdName); tr.appendChild(tdRent); tr.appendChild(tdSize); tr.appendChild(tdAge);
@@ -942,7 +1127,7 @@
         var detailRow = document.createElement("tr");
         detailRow.className = "detail-row";
         var detailCell = document.createElement("td");
-        detailCell.colSpan = 11;
+        detailCell.colSpan = PROP_DETAIL_COLSPAN;
 
         var editGrid = document.createElement("div");
         editGrid.className = "form-grid";
@@ -958,67 +1143,49 @@
           return input;
         }
         editField("家賃(円)", p.rent, function (v) {
-          p.rent = v === "" ? null : parseFloat(v); renderAll();
-          if (NOTION_ENABLED) notionUpdate(p.notionId, { "家賃": p.rent });
+          p.rent = parseNumOrNull(v); renderAll();
+          notionUpdateSafe(p.notionId, { "家賃": p.rent });
         });
         editField("広さ(m²)", p.size, function (v) {
-          p.size = v === "" ? null : parseFloat(v); renderAll();
-          if (NOTION_ENABLED) notionUpdate(p.notionId, { "広さ_m2": p.size });
+          p.size = parseNumOrNull(v); renderAll();
+          notionUpdateSafe(p.notionId, { "広さ_m2": p.size });
         });
         editField("築年数", p.age, function (v) {
-          p.age = v === "" ? null : parseFloat(v); renderAll();
-          if (NOTION_ENABLED) notionUpdate(p.notionId, { "築年数": p.age });
+          p.age = parseNumOrNull(v); renderAll();
+          notionUpdateSafe(p.notionId, { "築年数": p.age });
         });
         editField("駅徒歩(分)", p.stationMin, function (v) {
-          p.stationMin = v === "" ? null : parseFloat(v); renderAll();
-          if (NOTION_ENABLED) notionUpdate(p.notionId, { "駅徒歩分": p.stationMin });
+          p.stationMin = parseNumOrNull(v); renderAll();
+          notionUpdateSafe(p.notionId, { "駅徒歩分": p.stationMin });
         });
         editField("階数", p.floor, function (v) {
-          p.floor = v === "" ? null : parseFloat(v); renderAll();
-          if (NOTION_ENABLED) notionUpdate(p.notionId, { "階数": p.floor });
+          p.floor = parseNumOrNull(v); renderAll();
+          notionUpdateSafe(p.notionId, { "階数": p.floor });
         });
 
         var dirLabel = document.createElement("label");
         dirLabel.textContent = "方角";
-        var dirSelect = document.createElement("select");
-        DIRECTION_OPTIONS.forEach(function (d) {
-          var opt = document.createElement("option"); opt.value = d; opt.textContent = d;
-          if (d === p.direction) opt.selected = true;
-          dirSelect.appendChild(opt);
-        });
-        dirSelect.addEventListener("change", function () {
-          p.direction = dirSelect.value; renderAll();
-          if (NOTION_ENABLED) notionUpdate(p.notionId, { "方角": p.direction });
+        var dirSelect = createSelect(DIRECTION_OPTIONS, p.direction, function (value) {
+          p.direction = value; renderAll();
+          notionUpdateSafe(p.notionId, { "方角": p.direction });
         });
         dirLabel.appendChild(dirSelect);
         editGrid.appendChild(dirLabel);
 
         var sunLabel = document.createElement("label");
         sunLabel.textContent = "日当たり";
-        var sunSelect = document.createElement("select");
-        SUNLIGHT_OPTIONS.forEach(function (s) {
-          var opt = document.createElement("option"); opt.value = s; opt.textContent = s;
-          if (s === p.sunlight) opt.selected = true;
-          sunSelect.appendChild(opt);
-        });
-        sunSelect.addEventListener("change", function () {
-          p.sunlight = sunSelect.value; renderAll();
-          if (NOTION_ENABLED) notionUpdate(p.notionId, { "日当たり": p.sunlight });
+        var sunSelect = createSelect(SUNLIGHT_OPTIONS, p.sunlight, function (value) {
+          p.sunlight = value; renderAll();
+          notionUpdateSafe(p.notionId, { "日当たり": p.sunlight });
         });
         sunLabel.appendChild(sunSelect);
         editGrid.appendChild(sunLabel);
 
         var structLabel = document.createElement("label");
         structLabel.textContent = "建物構造";
-        var structSelectEdit = document.createElement("select");
-        STRUCTURE_OPTIONS.forEach(function (s) {
-          var opt = document.createElement("option"); opt.value = s; opt.textContent = s;
-          if (s === p.structure) opt.selected = true;
-          structSelectEdit.appendChild(opt);
-        });
-        structSelectEdit.addEventListener("change", function () {
-          p.structure = structSelectEdit.value; renderAll();
-          if (NOTION_ENABLED) notionUpdate(p.notionId, { "建物構造": p.structure });
+        var structSelectEdit = createSelect(STRUCTURE_OPTIONS, p.structure, function (value) {
+          p.structure = value; renderAll();
+          notionUpdateSafe(p.notionId, { "建物構造": p.structure });
         });
         structLabel.appendChild(structSelectEdit);
         editGrid.appendChild(structLabel);
@@ -1052,7 +1219,7 @@
               p.customChecked = p.customChecked.filter(function (n) { return n !== c.name; });
             }
             renderAll();
-            if (NOTION_ENABLED) notionUpdate(p.notionId, { "カスタムチェック": encodeList(p.customChecked) });
+            notionUpdateSafe(p.notionId, { "カスタムチェック": encodeList(p.customChecked) });
           });
           var span = document.createElement("span"); span.textContent = c.name;
           row.appendChild(cb); row.appendChild(span);
@@ -1067,6 +1234,10 @@
   }
 
   // ---------- Rooms (simple isometric 3D) ----------
+  // 部屋の間取り(床の形)は、多角形の頂点リスト(points)で表す。四角い部屋は
+  // 「頂点リスト未設定」として扱い、縦_cm/横_cm から自動的に矩形の4頂点を
+  // 作る(既存の四角形編集UIをそのまま使えるようにするため)。L字型などの
+  // 複雑な形にしたい場合だけ、頂点リストを明示的に設定する。
   function roomRowToItem(row) {
     var pageId = extractPageId(row.url);
     return {
@@ -1074,61 +1245,250 @@
       name: row["部屋名"] || "",
       depth: typeof row["縦_cm"] === "number" ? row["縦_cm"] : 300,
       width: typeof row["横_cm"] === "number" ? row["横_cm"] : 300,
-      height: typeof row["高さ_cm"] === "number" ? row["高さ_cm"] : 240
+      height: typeof row["高さ_cm"] === "number" ? row["高さ_cm"] : 240,
+      points: decodePoints(row["頂点リスト_cm"])
+    };
+  }
+  function roomFootprint(r) {
+    return r.points || [
+      { x: 0, y: 0 }, { x: r.width, y: 0 }, { x: r.width, y: r.depth }, { x: 0, y: r.depth }
+    ];
+  }
+  function roomBounds(r) {
+    var pts = roomFootprint(r);
+    var xs = pts.map(function (p) { return p.x; }), ys = pts.map(function (p) { return p.y; });
+    return {
+      minX: Math.min.apply(null, xs), maxX: Math.max.apply(null, xs),
+      minY: Math.min.apply(null, ys), maxY: Math.max.apply(null, ys)
     };
   }
   function loadRooms() {
-    return queryAllViewRows(DS.rooms.view).then(function (rows) {
-      return rows.filter(function (r) { return r["削除済み"] !== "__YES__"; }).map(roomRowToItem);
-    });
+    return loadActiveRows(DS.rooms.view, roomRowToItem);
   }
 
-  function drawIsoBox(ctx, x0, y0, w, d, h, hue) {
-    var cos30 = Math.cos(Math.PI / 6), sin30 = Math.sin(Math.PI / 6);
-    function proj(px, py, pz) {
-      return { x: x0 + (px - py) * cos30, y: y0 + (px + py) * sin30 - pz };
+  // 表示位置(ドラッグで移動)・見た目の角度(回転ボタン)。枠外に見切れる部分を
+  // 移動・回転で見られるようにするための表示状態(部屋データそのものは変えない)。
+  var ROOM_ANGLE_DEFAULT = Math.PI / 6;
+  var ROOM_ANGLE_MIN = Math.PI / 12;
+  var ROOM_ANGLE_MAX = Math.PI * 5 / 12;
+  var roomView = { angle: ROOM_ANGLE_DEFAULT, offsetX: 0, offsetY: 0 };
+
+  // roomCanvasの表示サイズは、初回描画時と実際のウィンドウリサイズ時だけ
+  // canvas.clientWidthを測り直してキャッシュする。クリック・ドラッグなどの
+  // 操作のたびに再測定してしまうと、スクロールバーの表示/非表示で
+  // clientWidthがわずかに変わった時にcanvas.width/heightの書き換え→
+  // レイアウト再計算→スクロールバーの状態がまた変わる、という連鎖(いわゆる
+  // リサイズループ)が起きうる。操作中の再描画は必ずこのキャッシュ値を使い、
+  // 実際の測定はrefreshRoomCanvasSize()からのみ行う。
+  var roomCanvasSize = null;
+  function refreshRoomCanvasSize(canvas) {
+    var dpr = window.devicePixelRatio || 1;
+    var cssWidth = canvas.clientWidth || canvas.parentElement.clientWidth || 400;
+    var cssHeight = parseInt(canvas.getAttribute("height"), 10) || 160;
+    roomCanvasSize = { cssWidth: cssWidth, cssHeight: cssHeight, dpr: dpr };
+  }
+  function setupRoomCanvas(canvas) {
+    if (!roomCanvasSize) refreshRoomCanvasSize(canvas);
+    var s = roomCanvasSize;
+    var neededWidth = Math.round(s.cssWidth * s.dpr);
+    var neededHeight = Math.round(s.cssHeight * s.dpr);
+    if (canvas.width !== neededWidth || canvas.height !== neededHeight) {
+      canvas.width = neededWidth;
+      canvas.height = neededHeight;
+      canvas.style.height = s.cssHeight + "px";
     }
-    var a = proj(0, 0, 0), b = proj(w, 0, 0), c = proj(w, d, 0), dd = proj(0, d, 0);
-    var a2 = proj(0, 0, h), b2 = proj(w, 0, h), c2 = proj(w, d, h), d2 = proj(0, d, h);
+    var ctx = canvas.getContext("2d");
+    ctx.setTransform(s.dpr, 0, 0, s.dpr, 0, 0);
+    ctx.clearRect(0, 0, s.cssWidth, s.cssHeight);
+    return { ctx: ctx, w: s.cssWidth, h: s.cssHeight };
+  }
+
+  // 床の形(多角形の頂点リスト)を高さ分だけ押し出して描く汎用版。四角い部屋も
+  // 「4頂点の矩形」として、このひとつの関数で描画する(直方体専用の分岐は持たない)。
+  //
+  // 壁(側面)は、頂点の並び順から求めた各辺の外向き法線が「視点方向」を
+  // 向いている辺だけを描く(裏面カリング)。視点方向は、このproj関数が表す
+  // 平行投影の投影軸(この関数が定義する画面x/y式)から逆算すると(-1,-1)相当に
+  // なる(px,py が同時に増える方向が画面奥へ向かうため、視点はその逆方向)。
+  // L字・T字など凹んだ形でも壁同士が重なって見える場合があるため、奥にある
+  // 壁から手前の壁の順(ペインターズアルゴリズム)で描画する。天面は間取りの
+  // 形を示す一番重要な面なので、裏面判定に関わらず常に描く。
+  function drawExtrudedPolygon(ctx, x0, y0, points, h, angle, hue) {
+    var cosA = Math.cos(angle), sinA = Math.sin(angle);
+    function proj(px, py, pz) {
+      return { x: x0 + (px - py) * cosA, y: y0 + (px + py) * sinA - pz };
+    }
+    var n = points.length;
+    var area = 0;
+    for (var i = 0; i < n; i++) {
+      var p1 = points[i], p2 = points[(i + 1) % n];
+      area += p1.x * p2.y - p2.x * p1.y;
+    }
+    var pts = area < 0 ? points.slice().reverse() : points;
+
+    var viewDir = { x: -1, y: -1 };
+    var lightDir = { x: -0.6, y: -0.35 };
+    var lightLen = Math.sqrt(lightDir.x * lightDir.x + lightDir.y * lightDir.y);
+    lightDir.x /= lightLen; lightDir.y /= lightLen;
+
     ctx.strokeStyle = "rgba(0,0,0,0.15)"; ctx.lineWidth = 1;
 
+    var walls = [];
+    for (var i = 0; i < n; i++) {
+      var p1 = pts[i], p2 = pts[(i + 1) % n];
+      var ex = p2.x - p1.x, ey = p2.y - p1.y;
+      var nx = ey, ny = -ex; // CCWの辺ベクトルを時計回りに90度回すと外向き法線
+      if (nx * viewDir.x + ny * viewDir.y <= 0) continue; // 裏面はスキップ
+      var nlen = Math.sqrt(nx * nx + ny * ny) || 1;
+      var brightness = (nx / nlen) * lightDir.x + (ny / nlen) * lightDir.y;
+      walls.push({ p1: p1, p2: p2, depthKey: (p1.x + p1.y + p2.x + p2.y) / 2, brightness: brightness });
+    }
+    walls.sort(function (a, b) { return b.depthKey - a.depthKey; });
+
+    walls.forEach(function (wall) {
+      var a = proj(wall.p1.x, wall.p1.y, 0), b = proj(wall.p2.x, wall.p2.y, 0);
+      var a2 = proj(wall.p1.x, wall.p1.y, h), b2 = proj(wall.p2.x, wall.p2.y, h);
+      ctx.fillStyle = shade(hue.base, Math.round(wall.brightness * 32));
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(b2.x, b2.y); ctx.lineTo(a2.x, a2.y);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+    });
+
     ctx.fillStyle = hue.top;
-    ctx.beginPath(); ctx.moveTo(a2.x, a2.y); ctx.lineTo(b2.x, b2.y); ctx.lineTo(c2.x, c2.y); ctx.lineTo(d2.x, d2.y); ctx.closePath();
-    ctx.fill(); ctx.stroke();
-
-    ctx.fillStyle = hue.left;
-    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a2.x, a2.y); ctx.lineTo(d2.x, d2.y); ctx.lineTo(dd.x, dd.y); ctx.closePath();
-    ctx.fill(); ctx.stroke();
-
-    ctx.fillStyle = hue.right;
-    ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.lineTo(c2.x, c2.y); ctx.lineTo(b2.x, b2.y); ctx.closePath();
+    ctx.beginPath();
+    pts.forEach(function (p, i) {
+      var sp = proj(p.x, p.y, h);
+      if (i === 0) ctx.moveTo(sp.x, sp.y); else ctx.lineTo(sp.x, sp.y);
+    });
+    ctx.closePath();
     ctx.fill(); ctx.stroke();
   }
 
   function drawRooms() {
     var canvas = document.getElementById("roomCanvas");
-    var setup = setupCanvas(canvas);
+    var setup = setupRoomCanvas(canvas);
     var ctx = setup.ctx, w = setup.w, h = setup.h;
     if (!state.rooms.length) {
       ctx.fillStyle = "#9ca3af"; ctx.font = "13px sans-serif"; ctx.textAlign = "center";
       ctx.fillText("部屋を追加すると、ここに簡易3D表示されます", w / 2, h / 2);
       return;
     }
-    var maxDim = Math.max.apply(null, state.rooms.map(function (r) { return Math.max(r.width, r.depth, r.height); }));
-    var scale = maxDim > 0 ? (h * 0.5) / maxDim : 0.3;
+    var angle = roomView.angle;
+    var cosA = Math.cos(angle);
+    // 多角形(L字型など)の部屋は、単純な width/depth ではなく実際の頂点の
+    // 外接矩形(bounding box)を基準にスケール・レイアウトを決める。
+    var boundsList = state.rooms.map(roomBounds);
+    var maxDim = Math.max.apply(null, state.rooms.map(function (r, i) {
+      var b = boundsList[i];
+      return Math.max(b.maxX - b.minX, b.maxY - b.minY, r.height);
+    }));
+    var heightScale = maxDim > 0 ? (h * 0.5) / maxDim : 0.3;
     var gap = 40;
+    // 部屋を横に並べた時の合計横幅も見積もり、縦方向だけでなく横方向にも
+    // 収まるようスケールを追加で抑える(元は縦方向しか見ていなかったため、
+    // 部屋数が多い・横長の部屋があると初期表示から枠外にはみ出していた)。
+    var estTotalRawWidth = state.rooms.reduce(function (sum, r, i) {
+      var b = boundsList[i];
+      return sum + (b.maxX - b.minX) + (b.maxY - b.minY) * 0.6;
+    }, 0) + gap * (state.rooms.length - 1);
+    var widthScale = estTotalRawWidth > 0 ? (w - 80) / estTotalRawWidth : heightScale;
+    var scale = Math.min(heightScale, widthScale > 0 ? widthScale : heightScale);
+
+    ctx.save();
+    ctx.translate(roomView.offsetX, roomView.offsetY);
     var x = 40;
     state.rooms.forEach(function (r, i) {
-      var wS = r.width * scale, dS = r.depth * scale, hS = r.height * scale;
-      var originX = x + dS * Math.cos(Math.PI / 6);
+      var b = boundsList[i];
+      var footprint = roomFootprint(r);
+      // 各部屋のローカル原点(0,0)がその外接矩形の左上に来るよう平行移動しつつスケールする
+      var scaledPoints = footprint.map(function (p) {
+        return { x: (p.x - b.minX) * scale, y: (p.y - b.minY) * scale };
+      });
+      var wS = (b.maxX - b.minX) * scale, dS = (b.maxY - b.minY) * scale, hS = r.height * scale;
+      var originX = x + dS * cosA;
       var originY = h - 34;
-      drawIsoBox(ctx, originX, originY, wS, dS, hS, {
-        top: colorForIndex(i), left: shade(colorForIndex(i), -30), right: shade(colorForIndex(i), -15)
+      drawExtrudedPolygon(ctx, originX, originY, scaledPoints, hS, angle, {
+        top: colorForIndex(i), base: colorForIndex(i)
       });
       ctx.fillStyle = "#374151"; ctx.font = "11px sans-serif"; ctx.textAlign = "center";
       ctx.fillText(r.name, originX, h - 18);
-      ctx.fillText(r.width + "×" + r.depth + "×" + r.height + "cm", originX, h - 5);
+      var dimText = r.points
+        ? "多角形(" + r.points.length + "点)・高さ" + r.height + "cm"
+        : r.width + "×" + r.depth + "×" + r.height + "cm";
+      ctx.fillText(dimText, originX, h - 5);
       x += wS + dS * 0.6 + gap;
+    });
+    ctx.restore();
+  }
+
+  // ドラッグ移動はPointer Events + setPointerCaptureで実装する。旧実装は
+  // mousedown(canvas)+mousemove/mouseup(window)を組み合わせていたが、Artifact上は
+  // アプリがiframe内で動くため、ポインタを離す操作がiframe外(親ページ側)で
+  // 起きるとwindowのmouseupが届かずドラッグ状態が終了しないまま残り、以後の
+  // わずかなマウス移動のたびに表示位置がどんどんずれて画面外に消える、という
+  // 不具合が起きうる(実際に「表示が消える」と報告があったための推定原因)。
+  // setPointerCaptureは離した場所によらずpointerup/cancelを確実にこの要素へ
+  // 届けるため、この種の「ドラッグが終わらない」不具合を構造的に防ぐ。
+  var ROOM_OFFSET_CLAMP = 4000;
+  function clampRoomOffset(v) {
+    return Math.max(-ROOM_OFFSET_CLAMP, Math.min(ROOM_OFFSET_CLAMP, v));
+  }
+  function initRoomCanvasInteraction() {
+    var canvas = document.getElementById("roomCanvas");
+    var activePointerId = null;
+
+    var resizeTimer = null;
+    window.addEventListener("resize", function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () {
+        refreshRoomCanvasSize(canvas);
+        drawRooms();
+      }, 200);
+    });
+
+    // ドラッグ量はe.clientX/Yの差分ではなく、e.movementX/Yの積算で計算する。
+    // clientX/Yはビューポート基準の座標なので、ドラッグ中にページ自体が
+    // (何らかの理由で)少しでもスクロールすると、マウスを動かしていなくても
+    // clientY が変化し、それが「ドラッグ量」として表示位置に加算されてしまう。
+    // 表示位置が動く→再描画→レイアウトが少し変わる→さらにスクロール、という
+    // フィードバックループになり、表示が枠外まで飛んだりスクロール位置が
+    // 勝手に変わったりする不具合の原因になっていた。movementX/Yはポインタ
+    // 自体の実移動量でスクロールの影響を受けないため、この連鎖を断ち切れる。
+    canvas.addEventListener("pointerdown", function (e) {
+      activePointerId = e.pointerId;
+      canvas.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    canvas.addEventListener("pointermove", function (e) {
+      if (activePointerId === null || e.pointerId !== activePointerId) return;
+      roomView.offsetX = clampRoomOffset(roomView.offsetX + e.movementX);
+      roomView.offsetY = clampRoomOffset(roomView.offsetY + e.movementY);
+      drawRooms();
+      e.preventDefault();
+    });
+    function endDrag(e) {
+      if (activePointerId === null || e.pointerId !== activePointerId) return;
+      try { canvas.releasePointerCapture(e.pointerId); } catch (err) { /* 既に解放済みなら無視 */ }
+      activePointerId = null;
+    }
+    canvas.addEventListener("pointerup", endDrag);
+    canvas.addEventListener("pointercancel", endDrag);
+    canvas.addEventListener("lostpointercapture", endDrag);
+
+    document.getElementById("roomRotateLeftBtn").addEventListener("click", function () {
+      roomView.angle = Math.max(ROOM_ANGLE_MIN, roomView.angle - Math.PI / 18);
+      drawRooms();
+    });
+    document.getElementById("roomRotateRightBtn").addEventListener("click", function () {
+      roomView.angle = Math.min(ROOM_ANGLE_MAX, roomView.angle + Math.PI / 18);
+      drawRooms();
+    });
+    document.getElementById("roomResetViewBtn").addEventListener("click", function () {
+      roomView.angle = ROOM_ANGLE_DEFAULT;
+      roomView.offsetX = 0;
+      roomView.offsetY = 0;
+      drawRooms();
     });
   }
 
@@ -1140,24 +1500,158 @@
     return "rgb(" + r + "," + g + "," + b + ")";
   }
 
+  // 部屋の1項目(名前 or 縦/横/高さ)を編集した時の共通処理。state更新→
+  // 3D表示の再描画→Notion同期、をまとめて行う(削除以外の全フィールドで共通)。
+  function commitRoomEdit(r, mutateFn, notionProp) {
+    mutateFn();
+    drawRooms();
+    renderRoomList();
+    var props = {};
+    props[notionProp.key] = notionProp.value;
+    notionUpdateSafe(r.notionId, props, "部屋の編集の同期に失敗しました");
+  }
+  function commitRoomPoints(r, newPoints) {
+    commitRoomEdit(r, function () { r.points = newPoints; }, { key: "頂点リスト_cm", value: encodePoints(newPoints) });
+  }
+
+  // 頂点リスト編集中の見取り図プレビュー(真上から見た単純な輪郭線)。
+  // 3D表示とは別に、形が意図通りか座標入力しながら確認できるようにするため。
+  function drawFootprintPreview(canvas, points) {
+    var ctx = canvas.getContext("2d");
+    var w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    if (!points || points.length < 3) return;
+    var xs = points.map(function (p) { return p.x; }), ys = points.map(function (p) { return p.y; });
+    var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
+    var minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
+    var pad = 8;
+    var scale = Math.min((w - pad * 2) / (maxX - minX || 1), (h - pad * 2) / (maxY - minY || 1));
+    ctx.fillStyle = "rgba(47,125,140,0.2)";
+    ctx.strokeStyle = "#2f7d8c";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    points.forEach(function (p, i) {
+      var x = pad + (p.x - minX) * scale, y = pad + (p.y - minY) * scale;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+  }
+
   function renderRoomList() {
     var list = document.getElementById("roomList");
     list.innerHTML = "";
     state.rooms.forEach(function (r) {
       var tag = document.createElement("div");
       tag.className = "room-tag";
-      var label = document.createElement("span");
-      label.textContent = r.name + "(" + r.width + "×" + r.depth + "×" + r.height + "cm)";
-      var rm = document.createElement("button");
-      rm.type = "button"; rm.className = "rm-btn"; rm.textContent = "✕";
-      rm.addEventListener("click", function () {
-        state.rooms = state.rooms.filter(function (x) { return x.id !== r.id; });
-        renderAll();
-        if (NOTION_ENABLED) notionSoftDelete(r.notionId).catch(function (err) {
-          setSyncStatus("部屋の削除の同期に失敗しました(" + (err && err.code) + ")", true);
-        });
+
+      var nameInput = document.createElement("input");
+      nameInput.type = "text";
+      nameInput.value = r.name;
+      nameInput.addEventListener("change", function () {
+        var v = nameInput.value.trim();
+        if (!v) { nameInput.value = r.name; return; }
+        commitRoomEdit(r, function () { r.name = v; }, { key: "部屋名", value: v });
       });
-      tag.appendChild(label); tag.appendChild(rm);
+      tag.appendChild(nameInput);
+
+      function dimInput(propName, notionKey, suffixText) {
+        var input = document.createElement("input");
+        input.type = "number";
+        input.min = "1";
+        input.value = r[propName];
+        input.title = suffixText;
+        input.addEventListener("change", function () {
+          var v = parseFloat(input.value);
+          if (!v || v <= 0) { input.value = r[propName]; return; }
+          commitRoomEdit(r, function () { r[propName] = v; }, { key: notionKey, value: v });
+        });
+        tag.appendChild(input);
+      }
+
+      if (r.points) {
+        // 多角形モード: 頂点(X,Y)のリストを直接編集する。ドラッグ式の
+        // エディタではなく数値入力のリストにすることで、実装をシンプルかつ
+        // 頑丈に保っている(座標が意図通りかはプレビューで確認できる)。
+        var polyWrap = document.createElement("div");
+        polyWrap.className = "poly-editor";
+
+        var preview = document.createElement("canvas");
+        preview.width = 120; preview.height = 90;
+        preview.className = "poly-preview";
+        polyWrap.appendChild(preview);
+        drawFootprintPreview(preview, r.points);
+
+        var pointList = document.createElement("div");
+        pointList.className = "poly-point-list";
+        r.points.forEach(function (p, idx) {
+          var row = document.createElement("div");
+          row.className = "poly-point-row";
+          var xInput = document.createElement("input");
+          xInput.type = "number"; xInput.value = p.x; xInput.title = "X(cm)";
+          var yInput = document.createElement("input");
+          yInput.type = "number"; yInput.value = p.y; yInput.title = "Y(cm)";
+          function commitPointEdit() {
+            var xv = parseFloat(xInput.value), yv = parseFloat(yInput.value);
+            if (isNaN(xv) || isNaN(yv)) return;
+            var newPoints = r.points.slice();
+            newPoints[idx] = { x: xv, y: yv };
+            commitRoomPoints(r, newPoints);
+          }
+          xInput.addEventListener("change", commitPointEdit);
+          yInput.addEventListener("change", commitPointEdit);
+          var xy = document.createElement("span"); xy.className = "dim-x"; xy.textContent = ",";
+          var rmPointBtn = document.createElement("button");
+          rmPointBtn.type = "button"; rmPointBtn.className = "rm-btn"; rmPointBtn.textContent = "✕";
+          rmPointBtn.title = "この頂点を削除";
+          rmPointBtn.addEventListener("click", function () {
+            if (r.points.length <= 3) return; // 三角形未満(閉じた図形にならない)にはしない
+            commitRoomPoints(r, r.points.filter(function (_, i) { return i !== idx; }));
+          });
+          row.appendChild(xInput); row.appendChild(xy); row.appendChild(yInput); row.appendChild(rmPointBtn);
+          pointList.appendChild(row);
+        });
+        polyWrap.appendChild(pointList);
+
+        var addPointBtn = document.createElement("button");
+        addPointBtn.type = "button"; addPointBtn.className = "secondary"; addPointBtn.textContent = "+ 頂点を追加";
+        addPointBtn.addEventListener("click", function () {
+          var last = r.points[r.points.length - 1];
+          commitRoomPoints(r, r.points.concat([{ x: last.x, y: last.y }]));
+        });
+        polyWrap.appendChild(addPointBtn);
+
+        var toRectBtn = document.createElement("button");
+        toRectBtn.type = "button"; toRectBtn.className = "secondary"; toRectBtn.textContent = "四角形に戻す";
+        toRectBtn.addEventListener("click", function () {
+          commitRoomEdit(r, function () { r.points = null; }, { key: "頂点リスト_cm", value: "" });
+        });
+        polyWrap.appendChild(toRectBtn);
+
+        tag.appendChild(polyWrap);
+        dimInput("height", "高さ_cm", "高さ(cm)");
+        var cmLabelPoly = document.createElement("span"); cmLabelPoly.className = "dim-x"; cmLabelPoly.textContent = "cm(高さ)"; tag.appendChild(cmLabelPoly);
+      } else {
+        dimInput("depth", "縦_cm", "縦(cm)");
+        var x1 = document.createElement("span"); x1.className = "dim-x"; x1.textContent = "×"; tag.appendChild(x1);
+        dimInput("width", "横_cm", "横(cm)");
+        var x2 = document.createElement("span"); x2.className = "dim-x"; x2.textContent = "×"; tag.appendChild(x2);
+        dimInput("height", "高さ_cm", "高さ(cm)");
+        var cmLabel = document.createElement("span"); cmLabel.className = "dim-x"; cmLabel.textContent = "cm"; tag.appendChild(cmLabel);
+
+        var toPolyBtn = document.createElement("button");
+        toPolyBtn.type = "button"; toPolyBtn.className = "secondary"; toPolyBtn.textContent = "L字型など多角形で編集";
+        toPolyBtn.addEventListener("click", function () {
+          var initPoints = roomFootprint(r);
+          commitRoomEdit(r, function () { r.points = initPoints; }, { key: "頂点リスト_cm", value: encodePoints(initPoints) });
+        });
+        tag.appendChild(toPolyBtn);
+      }
+
+      var rm = createRemoveButton("✕", function () {
+        state.rooms = state.rooms.filter(function (x) { return x.id !== r.id; });
+      }, r.notionId, "部屋の削除の同期に失敗しました");
+      tag.appendChild(rm);
       list.appendChild(tag);
     });
   }
@@ -1168,8 +1662,8 @@
     return { id: pageId, notionId: pageId, name: row["項目名"] || "", status: row["状態"] || "未検討" };
   }
   function loadDiscounts() {
-    return queryAllViewRows(DS.discounts.view).then(function (rows) {
-      return rows.filter(function (r) { return r["削除済み"] !== "__YES__"; }).map(discountRowToItem).filter(function (d) { return d.name; });
+    return loadActiveRows(DS.discounts.view, discountRowToItem).then(function (items) {
+      return items.filter(function (d) { return d.name; });
     });
   }
 
@@ -1187,42 +1681,20 @@
 
       var right = document.createElement("div");
       right.className = "row";
-      var select = document.createElement("select");
-      select.className = "status-select";
-      DISCOUNT_STATUS_OPTIONS.forEach(function (s) {
-        var opt = document.createElement("option"); opt.value = s; opt.textContent = s;
-        if (s === d.status) opt.selected = true;
-        select.appendChild(opt);
-      });
-      select.addEventListener("change", function () {
-        d.status = select.value; renderAll();
-        if (NOTION_ENABLED) notionUpdate(d.notionId, { "状態": d.status }).catch(function (err) {
-          setSyncStatus("割引チェックの同期に失敗しました(" + (err && err.code) + ")", true);
-        });
-      });
-      var badge = document.createElement("span");
-      badge.className = "badge"; badge.style.background = DISCOUNT_STATUS_COLOR[d.status] || "#999";
-      badge.textContent = " ";
+      var select = createSelect(DISCOUNT_STATUS_OPTIONS, d.status, function (value) {
+        d.status = value; renderAll();
+        notionUpdateSafe(d.notionId, { "状態": d.status }, "割引チェックの同期に失敗しました");
+      }, "status-select");
+      var badge = createStatusBadge(DISCOUNT_STATUS_COLOR[d.status]);
 
-      var rm = document.createElement("button");
-      rm.type = "button"; rm.className = "rm-btn"; rm.textContent = "削除";
-      rm.addEventListener("click", function () {
+      var rm = createRemoveButton("削除", function () {
         state.discounts = state.discounts.filter(function (x) { return x.id !== d.id; });
-        renderAll();
-        if (NOTION_ENABLED) notionSoftDelete(d.notionId).catch(function (err) {
-          setSyncStatus("割引項目の削除の同期に失敗しました(" + (err && err.code) + ")", true);
-        });
-      });
+      }, d.notionId, "割引項目の削除の同期に失敗しました");
 
       right.appendChild(badge); right.appendChild(select); right.appendChild(rm);
       row.appendChild(label); row.appendChild(right);
       list.appendChild(row);
     });
-  }
-
-  // ---------- Stats ----------
-  function renderStats() {
-    // (kept minimal on purpose; the per-section tables already surface the key numbers)
   }
 
   function renderAll() {
@@ -1241,25 +1713,14 @@
 
   // ---------- Init ----------
   function seedDirectionAndSunlightSelects() {
-    var dirSelect = document.getElementById("propDirection");
-    DIRECTION_OPTIONS.forEach(function (d) {
-      var opt = document.createElement("option"); opt.value = d; opt.textContent = d;
-      dirSelect.appendChild(opt);
-    });
-    var sunSelect = document.getElementById("propSunlight");
-    SUNLIGHT_OPTIONS.forEach(function (s) {
-      var opt = document.createElement("option"); opt.value = s; opt.textContent = s;
-      sunSelect.appendChild(opt);
-    });
-    var structSelect = document.getElementById("propStructure");
-    STRUCTURE_OPTIONS.forEach(function (s) {
-      var opt = document.createElement("option"); opt.value = s; opt.textContent = s;
-      structSelect.appendChild(opt);
-    });
+    populateSelectOptions(document.getElementById("propDirection"), DIRECTION_OPTIONS);
+    populateSelectOptions(document.getElementById("propSunlight"), SUNLIGHT_OPTIONS);
+    populateSelectOptions(document.getElementById("propStructure"), STRUCTURE_OPTIONS);
   }
 
   function init() {
     seedDirectionAndSunlightSelects();
+    initRoomCanvasInteraction();
 
     ["wishArea", "wishBudget", "wishLayout", "wishStationMin"].forEach(function (id) {
       document.getElementById(id).addEventListener("input", renderPropertySearchLinks);
@@ -1290,7 +1751,7 @@
       if (!company || amountRaw === "") return;
       var careRaw = document.getElementById("quoteCare").value;
       var q = {
-        id: "temp-" + (nextTempId++), notionId: null,
+        id: makeTempId(), notionId: null,
         company: company, amount: parseFloat(amountRaw),
         date: document.getElementById("quoteDate").value || "",
         care: careRaw === "" ? null : parseInt(careRaw, 10),
@@ -1305,14 +1766,7 @@
       document.getElementById("quoteImageInput").value = "";
       document.getElementById("ocrStatus").textContent = "";
       renderAll();
-      if (NOTION_ENABLED) {
-        notionCreate(DS.quotes.id, quoteToProps(q)).then(function (res) {
-          var created = res.payload && res.payload.pages && res.payload.pages[0];
-          if (created && created.id) { q.id = created.id; q.notionId = created.id; }
-        }).catch(function (err) {
-          setSyncStatus("見積もりの追加の同期に失敗しました(" + (err && err.code) + ")", true);
-        });
-      }
+      createAndSync(DS.quotes.id, quoteToProps(q), q, "見積もりの追加の同期に失敗しました");
     });
 
     // ---------- 見積書画像からの金額読み取り(OCR、精度は完全ではないため候補表示のみ) ----------
@@ -1323,7 +1777,7 @@
       var m;
       while ((m = re1.exec(text))) matches.push(parseInt(m[1].replace(/,/g, ""), 10));
       while ((m = re2.exec(text))) matches.push(parseInt(m[1].replace(/,/g, ""), 10));
-      return matches.filter(function (n) { return !isNaN(n) && n >= 1000 && n <= 5000000; });
+      return matches.filter(function (n) { return !isNaN(n) && n >= YEN_MIN_PLAUSIBLE && n <= YEN_MAX_PLAUSIBLE; });
     }
     document.getElementById("quoteImageInput").addEventListener("change", function (e) {
       var file = e.target.files && e.target.files[0];
@@ -1358,9 +1812,9 @@
     document.getElementById("addPropBtn").addEventListener("click", function () {
       var name = document.getElementById("propName").value.trim();
       if (!name) return;
-      function numOrNull(id) { var v = document.getElementById(id).value; return v === "" ? null : parseFloat(v); }
+      function numOrNull(id) { return parseNumOrNull(document.getElementById(id).value); }
       var p = {
-        id: "temp-" + (nextTempId++), notionId: null,
+        id: makeTempId(), notionId: null,
         name: name,
         rent: numOrNull("propRent"), size: numOrNull("propSize"), age: numOrNull("propAge"),
         stationMin: numOrNull("propStation"), floor: numOrNull("propFloor"),
@@ -1374,30 +1828,16 @@
         document.getElementById(id).value = "";
       });
       renderAll();
-      if (NOTION_ENABLED) {
-        notionCreate(DS.properties.id, propToProps(p)).then(function (res) {
-          var created = res.payload && res.payload.pages && res.payload.pages[0];
-          if (created && created.id) { p.id = created.id; p.notionId = created.id; }
-        }).catch(function (err) {
-          setSyncStatus("候補物件の追加の同期に失敗しました(" + (err && err.code) + ")", true);
-        });
-      }
+      createAndSync(DS.properties.id, propToProps(p), p, "候補物件の追加の同期に失敗しました");
     });
 
     function addCriterion(name) {
       name = (name || "").trim();
-      if (!name || state.criteria.some(function (c) { return c.name === name; })) return;
-      var c = { id: "temp-" + (nextTempId++), notionId: null, name: name };
+      if (!name || nameExists(state.criteria, name)) return;
+      var c = { id: makeTempId(), notionId: null, name: name };
       state.criteria.push(c);
       renderAll();
-      if (NOTION_ENABLED) {
-        notionCreate(DS.criteria.id, { "項目名": name }).then(function (res) {
-          var created = res.payload && res.payload.pages && res.payload.pages[0];
-          if (created && created.id) { c.id = created.id; c.notionId = created.id; }
-        }).catch(function (err) {
-          setSyncStatus("カスタム項目の追加の同期に失敗しました(" + (err && err.code) + ")", true);
-        });
-      }
+      createAndSync(DS.criteria.id, { "項目名": name }, c, "カスタム項目の追加の同期に失敗しました");
     }
     document.getElementById("addCriteriaBtn").addEventListener("click", function () {
       var input = document.getElementById("criteriaInput");
@@ -1421,36 +1861,22 @@
       var width = parseFloat(document.getElementById("roomWidth").value);
       var height = parseFloat(document.getElementById("roomHeight").value);
       if (!name || !depth || !width || !height) return;
-      var r = { id: "temp-" + (nextTempId++), notionId: null, name: name, depth: depth, width: width, height: height };
+      var r = { id: makeTempId(), notionId: null, name: name, depth: depth, width: width, height: height, points: null };
       state.rooms.push(r);
       ["roomName", "roomDepth", "roomWidth", "roomHeight"].forEach(function (id) { document.getElementById(id).value = ""; });
       renderAll();
-      if (NOTION_ENABLED) {
-        notionCreate(DS.rooms.id, { "部屋名": name, "縦_cm": depth, "横_cm": width, "高さ_cm": height }).then(function (res) {
-          var created = res.payload && res.payload.pages && res.payload.pages[0];
-          if (created && created.id) { r.id = created.id; r.notionId = created.id; }
-        }).catch(function (err) {
-          setSyncStatus("部屋の追加の同期に失敗しました(" + (err && err.code) + ")", true);
-        });
-      }
+      createAndSync(DS.rooms.id, { "部屋名": name, "縦_cm": depth, "横_cm": width, "高さ_cm": height }, r, "部屋の追加の同期に失敗しました");
     });
 
     document.getElementById("addDiscountBtn").addEventListener("click", function () {
       var input = document.getElementById("discountInput");
       var name = input.value.trim();
-      if (!name || state.discounts.some(function (d) { return d.name === name; })) return;
-      var d = { id: "temp-" + (nextTempId++), notionId: null, name: name, status: "未検討" };
+      if (!name || nameExists(state.discounts, name)) return;
+      var d = { id: makeTempId(), notionId: null, name: name, status: "未検討" };
       state.discounts.push(d);
       input.value = "";
       renderAll();
-      if (NOTION_ENABLED) {
-        notionCreate(DS.discounts.id, { "項目名": name, "状態": "未検討" }).then(function (res) {
-          var created = res.payload && res.payload.pages && res.payload.pages[0];
-          if (created && created.id) { d.id = created.id; d.notionId = created.id; }
-        }).catch(function (err) {
-          setSyncStatus("割引項目の追加の同期に失敗しました(" + (err && err.code) + ")", true);
-        });
-      }
+      createAndSync(DS.discounts.id, { "項目名": name, "状態": "未検討" }, d, "割引項目の追加の同期に失敗しました");
     });
 
     window.addEventListener("resize", function () {
@@ -1469,7 +1895,7 @@
         if (!state.discounts.length) {
           // 初回のみ、一般的なカテゴリを既定項目として用意する
           DEFAULT_DISCOUNT_ITEMS.forEach(function (name) {
-            var d = { id: "temp-" + (nextTempId++), notionId: null, name: name, status: "未検討" };
+            var d = { id: makeTempId(), notionId: null, name: name, status: "未検討" };
             state.discounts.push(d);
             notionCreate(DS.discounts.id, { "項目名": name, "状態": "未検討" }).then(function (res) {
               var created = res.payload && res.payload.pages && res.payload.pages[0];
@@ -1485,7 +1911,7 @@
       });
     } else {
       DEFAULT_DISCOUNT_ITEMS.forEach(function (name) {
-        state.discounts.push({ id: "temp-" + (nextTempId++), notionId: null, name: name, status: "未検討" });
+        state.discounts.push({ id: makeTempId(), notionId: null, name: name, status: "未検討" });
       });
       setSyncStatus("ローカルモードです(このページを閉じるとデータは消えます)");
       renderAll();
