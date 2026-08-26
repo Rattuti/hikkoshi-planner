@@ -74,13 +74,10 @@
   .empty { color: var(--muted); text-align: center; padding: 24px 0; font-size: 0.88rem; }
   .cheapest-tag { font-size: 0.7rem; color: var(--keep); font-weight: 700; margin-left: 4px; }
 
-  .mini-table-wrap { overflow-x: auto; }
-  .mini-table { width: auto; max-width: none; border-collapse: collapse; font-size: 0.78rem; table-layout: auto; }
-  .mini-table th, .mini-table td {
-    white-space: nowrap; padding: 3px 8px; border: none; border-bottom: 1px solid var(--border);
-  }
-  .mini-table th { color: var(--muted); font-weight: 600; position: static; background: none; padding-top: 0; }
-  .mini-table tbody td { border-bottom: none; padding-bottom: 0; }
+  .info-chip-list { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .info-chip { display: flex; align-items: baseline; gap: 4px; font-size: 0.78rem; white-space: nowrap; }
+  .info-chip-label { color: var(--muted); font-weight: 600; }
+  .info-chip-value { color: var(--text); }
 
   .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 10px; }
   .form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 0.78rem; color: var(--muted); }
@@ -597,15 +594,14 @@
     return td;
   }
 
-  var PROP_INFO_COLUMNS = ["家賃", "広さ", "築年数", "駅徒歩", "方角/日当たり", "構造", "情報元"];
-  function propertyInfoValues(p) {
+  function propertyInfoFields(p) {
     return [
-      formatYen(p.rent),
-      p.size != null ? p.size + "m²" : "-",
-      p.age != null ? p.age + "年" : "-",
-      p.stationMin != null ? p.stationMin + "分" : "-",
-      p.direction + " / " + p.sunlight,
-      p.structure || "不明"
+      ["家賃", formatYen(p.rent)],
+      ["広さ", p.size != null ? p.size + "m²" : "-"],
+      ["築年数", p.age != null ? p.age + "年" : "-"],
+      ["駅徒歩", p.stationMin != null ? p.stationMin + "分" : "-"],
+      ["方角/日当たり", p.direction + " / " + p.sunlight],
+      ["構造", p.structure || "不明"]
     ];
   }
   // 「参照リンク」には単一URLだけでなく、複数URLの改行/カンマ区切りや、
@@ -622,31 +618,41 @@
     });
     return result;
   }
+  function createInfoChip(label, buildValue) {
+    var chip = document.createElement("div");
+    chip.className = "info-chip";
+    var labelEl = document.createElement("span");
+    labelEl.className = "info-chip-label";
+    labelEl.textContent = label;
+    chip.appendChild(labelEl);
+    buildValue(chip);
+    return chip;
+  }
+  // 家賃・広さ等の各項目を「ラベル: 値」の小さな単位(chip)にして
+  // flex-wrapで並べる。画面幅に応じて自然に折り返すため、テーブル形式と
+  // 違い横スクロールが発生しない(スマホ幅で右端が見切れる問題への対応)。
   function createPropertyInfoCell(p) {
     var td = document.createElement("td");
     td.setAttribute("data-label", "物件情報");
     var wrap = document.createElement("div");
-    wrap.className = "mini-table-wrap";
-    var table = document.createElement("table");
-    table.className = "mini-table";
-    var thead = document.createElement("thead");
-    var headRow = document.createElement("tr");
-    PROP_INFO_COLUMNS.forEach(function (label) {
-      var th = document.createElement("th");
-      th.textContent = label;
-      headRow.appendChild(th);
+    wrap.className = "info-chip-list";
+    propertyInfoFields(p).forEach(function (field) {
+      wrap.appendChild(createInfoChip(field[0], function (chip) {
+        var valueEl = document.createElement("span");
+        valueEl.className = "info-chip-value";
+        valueEl.textContent = field[1];
+        chip.appendChild(valueEl);
+      }));
     });
-    thead.appendChild(headRow);
-    var tbody = document.createElement("tbody");
-    var valRow = document.createElement("tr");
-    propertyInfoValues(p).forEach(function (val) {
-      var valCell = document.createElement("td");
-      valCell.textContent = val;
-      valRow.appendChild(valCell);
-    });
-    var urlCell = document.createElement("td");
     var sourceUrls = extractUrls(p.sourceUrl);
-    if (sourceUrls.length) {
+    wrap.appendChild(createInfoChip("情報元", function (chip) {
+      if (!sourceUrls.length) {
+        var valueEl = document.createElement("span");
+        valueEl.className = "info-chip-value";
+        valueEl.textContent = "-";
+        chip.appendChild(valueEl);
+        return;
+      }
       sourceUrls.forEach(function (u, i) {
         var urlLink = document.createElement("a");
         urlLink.href = u;
@@ -655,15 +661,9 @@
         urlLink.title = u;
         urlLink.textContent = sourceUrls.length > 1 ? ("🔗" + (i + 1)) : "🔗 開く";
         urlLink.style.marginRight = "6px";
-        urlCell.appendChild(urlLink);
+        chip.appendChild(urlLink);
       });
-    } else {
-      urlCell.textContent = "-";
-    }
-    valRow.appendChild(urlCell);
-    tbody.appendChild(valRow);
-    table.appendChild(thead); table.appendChild(tbody);
-    wrap.appendChild(table);
+    }));
     td.appendChild(wrap);
     return td;
   }
