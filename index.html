@@ -138,6 +138,27 @@
     }
     .table-wrap > table > tbody > tr > td select, .table-wrap > table > tbody > tr > td input { width: 100%; box-sizing: border-box; }
     .status-select, button { min-height: 40px; }
+
+    /* 候補物件テーブルはスマホでも表形式のまま、スコア/ステータス列を省略して幅を節約する */
+    .table-wrap.prop-table-wrap { overflow-x: auto; overflow-y: visible; max-height: none; border: 1px solid var(--border); }
+    .table-wrap.prop-table-wrap > table { display: table; width: auto; min-width: 100%; table-layout: auto; }
+    .table-wrap.prop-table-wrap > table > thead { display: table-header-group; }
+    .table-wrap.prop-table-wrap > table > tbody { display: table-row-group; }
+    .table-wrap.prop-table-wrap > table > tbody > tr { display: table-row; }
+    .table-wrap.prop-table-wrap > table > tbody > tr:not(.detail-row) {
+      background: none; border: none; border-radius: 0; padding: 0; margin-bottom: 0;
+    }
+    .table-wrap.prop-table-wrap > table > tbody > tr > td {
+      display: table-cell; width: auto; border-bottom: 1px solid var(--border); padding: 8px 6px; white-space: normal;
+    }
+    .table-wrap.prop-table-wrap > table > tbody > tr > td.name-cell {
+      font-size: 0.86rem; font-weight: 500; max-width: none; padding-bottom: 8px; margin-bottom: 0; border-bottom: 1px solid var(--border);
+    }
+    .table-wrap.prop-table-wrap > table > tbody > tr > td[data-label]::before { content: none; }
+    .table-wrap.prop-table-wrap col.prop-col-score,
+    .table-wrap.prop-table-wrap col.prop-col-status { visibility: collapse; }
+    .table-wrap.prop-table-wrap .prop-col-score,
+    .table-wrap.prop-table-wrap .prop-col-status { display: none; }
   }
 </style>
 </head>
@@ -254,13 +275,13 @@
     <div class="hint" style="margin-top:8px;">よく使う項目(タップで追加):</div>
     <div class="row" id="criteriaPresetRow" style="margin-top:4px; flex-wrap: wrap;"></div>
 
-    <div class="table-wrap">
+    <div class="table-wrap prop-table-wrap">
       <table>
         <colgroup>
-          <col style="width:18%"><col style="width:40%"><col style="width:12%"><col style="width:16%">
+          <col style="width:18%"><col style="width:40%"><col class="prop-col-score" style="width:12%"><col class="prop-col-status" style="width:16%">
           <col style="width:9%"><col style="width:5%">
         </colgroup>
-        <thead><tr><th>物件名</th><th>物件情報</th><th>スコア</th><th>ステータス</th><th>詳細</th><th></th></tr></thead>
+        <thead><tr><th>物件名</th><th>物件情報</th><th class="prop-col-score">スコア</th><th class="prop-col-status">ステータス</th><th>詳細</th><th></th></tr></thead>
         <tbody id="propBody"></tbody>
       </table>
     </div>
@@ -1151,6 +1172,7 @@
       var tdInfo = createPropertyInfoCell(p);
 
       var tdScore = document.createElement("td");
+      tdScore.className = "prop-col-score";
       tdScore.setAttribute("data-label", "スコア");
       var scoreVal = scores[p.id] || 0;
       var scoreWrap = document.createElement("div");
@@ -1165,6 +1187,7 @@
       tdScore.appendChild(scoreWrap);
 
       var tdStatus = document.createElement("td");
+      tdStatus.className = "prop-col-status";
       tdStatus.setAttribute("data-label", "ステータス");
       var statusWrap = document.createElement("div");
       statusWrap.className = "row"; statusWrap.style.gap = "6px";
