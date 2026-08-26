@@ -587,8 +587,19 @@
       p.structure || "不明"
     ];
   }
-  function isSafeHttpUrl(url) {
-    return /^https?:\/\//i.test(url || "");
+  // 「参照リンク」には単一URLだけでなく、複数URLの改行/カンマ区切りや、
+  // 説明文と混在したテキスト(実データで確認済み)も入っているため、
+  // 文字列全体でなくテキスト中のURLトークンを個別に抽出する。
+  function extractUrls(text) {
+    if (!text) return [];
+    var matches = text.match(/https?:\/\/[^\s"'<>]+/g) || [];
+    var seen = {};
+    var result = [];
+    matches.forEach(function (u) {
+      var cleaned = u.replace(/[)\]）」、。，,]+$/, "");
+      if (cleaned && !seen[cleaned]) { seen[cleaned] = true; result.push(cleaned); }
+    });
+    return result;
   }
   function createPropertyInfoCell(p) {
     var td = document.createElement("td");
@@ -613,13 +624,18 @@
       valRow.appendChild(valCell);
     });
     var urlCell = document.createElement("td");
-    if (isSafeHttpUrl(p.sourceUrl)) {
-      var urlLink = document.createElement("a");
-      urlLink.href = p.sourceUrl;
-      urlLink.target = "_blank";
-      urlLink.rel = "noopener noreferrer";
-      urlLink.textContent = "🔗 開く";
-      urlCell.appendChild(urlLink);
+    var sourceUrls = extractUrls(p.sourceUrl);
+    if (sourceUrls.length) {
+      sourceUrls.forEach(function (u, i) {
+        var urlLink = document.createElement("a");
+        urlLink.href = u;
+        urlLink.target = "_blank";
+        urlLink.rel = "noopener noreferrer";
+        urlLink.title = u;
+        urlLink.textContent = sourceUrls.length > 1 ? ("🔗" + (i + 1)) : "🔗 開く";
+        urlLink.style.marginRight = "6px";
+        urlCell.appendChild(urlLink);
+      });
     } else {
       urlCell.textContent = "-";
     }
