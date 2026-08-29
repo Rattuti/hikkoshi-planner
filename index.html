@@ -951,7 +951,14 @@
   function setupCanvas(canvas, fixedWidth) {
     var dpr = window.devicePixelRatio || 1;
     var cssWidth = fixedWidth || canvas.clientWidth || canvas.parentElement.clientWidth || 400;
-    var cssHeight = parseInt(canvas.getAttribute("height"), 10) || 160;
+    // canvas.height に書き込むとheight属性そのものが書き換わるため、
+    // 属性から毎回読み直すとdevicePixelRatio倍ずつ増え続けるバグになる
+    // (実機で発生確認済み)。最初の呼び出し時点の値をdata属性に保持し、
+    // 以降はそちらだけを高さの基準にする。
+    if (!canvas.dataset.baseHeight) {
+      canvas.dataset.baseHeight = canvas.getAttribute("height") || "160";
+    }
+    var cssHeight = parseInt(canvas.dataset.baseHeight, 10) || 160;
     var neededWidth = Math.round(cssWidth * dpr);
     var neededHeight = Math.round(cssHeight * dpr);
     // canvas.width/heightへの書き込みはビットマップを破棄する重い操作で、
