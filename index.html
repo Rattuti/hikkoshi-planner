@@ -34,6 +34,7 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 18px 20px;
+    min-width: 0;
   }
   .panel h2 { font-size: 1rem; margin: 0 0 4px; }
   .panel .desc { font-size: 0.82rem; color: var(--muted); margin: 0 0 14px; }
@@ -232,9 +233,9 @@
     <h2>費用の目安グラフ</h2>
     <p class="desc">上段は一般的な季節傾向の目安(参考情報・実際の価格ではありません)。下段は、あなたが記録した実際の見積もりの推移です。</p>
     <div class="hint" style="margin-top:0;">月別の混雑・価格帯の目安(相対レベル、1〜5)</div>
-    <div class="chart-scroll"><canvas id="seasonChart" height="220" class="chart-fixed"></canvas></div>
+    <div class="chart-scroll" style="height:220px;"><canvas id="seasonChart" height="220" class="chart-fixed"></canvas></div>
     <div class="hint">あなたの見積もり実績の推移(業者ごとに色分け)</div>
-    <div class="chart-scroll"><canvas id="quoteChart" height="280" class="chart-fixed"></canvas></div>
+    <div class="chart-scroll" style="height:280px;"><canvas id="quoteChart" height="280" class="chart-fixed"></canvas></div>
     <div class="legend" id="quoteChartLegend"></div>
   </div>
 
