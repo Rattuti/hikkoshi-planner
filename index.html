@@ -93,6 +93,8 @@
   .score-bar-fill { height: 100%; border-radius: 999px; }
 
   canvas { max-width: 100%; }
+  .chart-scroll { overflow-x: auto; }
+  .chart-fixed { max-width: none; }
   #roomCanvas { cursor: grab; touch-action: none; }
   #roomCanvas:active { cursor: grabbing; }
   .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; font-size: 0.8rem; }
@@ -230,9 +232,9 @@
     <h2>費用の目安グラフ</h2>
     <p class="desc">上段は一般的な季節傾向の目安(参考情報・実際の価格ではありません)。下段は、あなたが記録した実際の見積もりの推移です。</p>
     <div class="hint" style="margin-top:0;">月別の混雑・価格帯の目安(相対レベル、1〜5)</div>
-    <canvas id="seasonChart" height="220"></canvas>
+    <div class="chart-scroll"><canvas id="seasonChart" height="220" class="chart-fixed"></canvas></div>
     <div class="hint">あなたの見積もり実績の推移(業者ごとに色分け)</div>
-    <canvas id="quoteChart" height="280"></canvas>
+    <div class="chart-scroll"><canvas id="quoteChart" height="280" class="chart-fixed"></canvas></div>
     <div class="legend" id="quoteChartLegend"></div>
   </div>
 
@@ -943,9 +945,11 @@
   }
 
   // ---------- Season + quote charts ----------
-  function setupCanvas(canvas) {
+  // fixedWidthを渡すと、画面幅(clientWidth)に関わらずCSS上の横幅を固定値にする
+  // (費用の目安グラフを画面サイズによらず一定の見た目にするため)。
+  function setupCanvas(canvas, fixedWidth) {
     var dpr = window.devicePixelRatio || 1;
-    var cssWidth = canvas.clientWidth || canvas.parentElement.clientWidth || 400;
+    var cssWidth = fixedWidth || canvas.clientWidth || canvas.parentElement.clientWidth || 400;
     var cssHeight = parseInt(canvas.getAttribute("height"), 10) || 160;
     var neededWidth = Math.round(cssWidth * dpr);
     var neededHeight = Math.round(cssHeight * dpr);
@@ -958,6 +962,7 @@
       canvas.width = neededWidth;
       canvas.height = neededHeight;
       canvas.style.height = cssHeight + "px";
+      if (fixedWidth) canvas.style.width = cssWidth + "px";
     }
     var ctx = canvas.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -965,8 +970,10 @@
     return { ctx: ctx, w: cssWidth, h: cssHeight };
   }
 
+  var CHART_FIXED_WIDTH = 600;
+
   function drawSeasonChart() {
-    var setup = setupCanvas(document.getElementById("seasonChart"));
+    var setup = setupCanvas(document.getElementById("seasonChart"), CHART_FIXED_WIDTH);
     var ctx = setup.ctx, w = setup.w, h = setup.h;
     var padLeft = 28, padBottom = 22, padTop = 10, padRight = 10;
     var chartW = w - padLeft - padRight;
@@ -988,7 +995,7 @@
 
   function drawQuoteChart() {
     var canvas = document.getElementById("quoteChart");
-    var setup = setupCanvas(canvas);
+    var setup = setupCanvas(canvas, CHART_FIXED_WIDTH);
     var ctx = setup.ctx, w = setup.w, h = setup.h;
     var legend = document.getElementById("quoteChartLegend");
     legend.innerHTML = "";
