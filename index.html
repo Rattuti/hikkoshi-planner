@@ -74,6 +74,9 @@
   .rm-btn:hover { color: var(--letgo); }
   .empty { color: var(--muted); text-align: center; padding: 24px 0; font-size: 0.88rem; }
   .cheapest-tag { font-size: 0.7rem; color: var(--keep); font-weight: 700; margin-left: 4px; }
+  .expired-tag { font-size: 0.7rem; color: #fff; background: var(--letgo); padding: 2px 9px; border-radius: 999px; font-weight: 700; margin-left: 6px; white-space: nowrap; }
+  .fav-btn { background: none; border: none; cursor: pointer; font-size: 1.2rem; line-height: 1; padding: 4px; color: var(--border); }
+  .fav-btn.on { color: #e0b34a; }
 
   .info-chip-list { display: flex; flex-wrap: wrap; gap: 4px 14px; }
   .info-chip { display: flex; align-items: baseline; gap: 4px; font-size: 0.78rem; white-space: nowrap; }
@@ -276,10 +279,10 @@
     <div class="table-wrap prop-table-wrap">
       <table>
         <colgroup>
-          <col style="width:18%"><col style="width:40%"><col class="prop-col-score" style="width:12%"><col class="prop-col-status" style="width:16%">
+          <col style="width:6%"><col style="width:14%"><col style="width:38%"><col class="prop-col-score" style="width:12%"><col class="prop-col-status" style="width:16%">
           <col style="width:9%"><col style="width:5%">
         </colgroup>
-        <thead><tr><th>物件名</th><th>物件情報</th><th class="prop-col-score">スコア</th><th class="prop-col-status">ステータス</th><th>詳細</th><th></th></tr></thead>
+        <thead><tr><th></th><th>物件名</th><th>物件情報</th><th class="prop-col-score">スコア</th><th class="prop-col-status">ステータス</th><th>詳細</th><th></th></tr></thead>
         <tbody id="propBody"></tbody>
       </table>
     </div>
@@ -744,7 +747,8 @@
   var PROPERTY_PORTAL_SITES = [
     { name: "SUUMO", domain: "suumo.jp" },
     { name: "アットホーム", domain: "athome.co.jp" },
-    { name: "LIFULL HOME'S", domain: "homes.co.jp" }
+    { name: "LIFULL HOME'S", domain: "homes.co.jp" },
+    { name: "UR賃貸住宅", domain: "ur-net.go.jp" }
   ];
   function buildPropertyPortalSearchUrl(domain) {
     var area = document.getElementById("wishArea").value.trim();
@@ -1081,7 +1085,9 @@
       structure: row["建物構造"] || "不明",
       sourceUrl: row["参照リンク"] || "",
       customChecked: customChecked,
-      status: row["決定ステータス"] || "検討中"
+      status: row["決定ステータス"] || "検討中",
+      favorite: row["お気に入り"] === "__YES__",
+      tags: Array.isArray(row["タグ"]) ? row["タグ"] : []
     };
   }
   function propToProps(p) {
@@ -1089,7 +1095,8 @@
       "物件名": p.name, "家賃": p.rent, "広さ_m2": p.size, "築年数": p.age,
       "駅徒歩分": p.stationMin, "階数": p.floor, "方角": p.direction, "日当たり": p.sunlight,
       "建物構造": p.structure, "参照リンク": p.sourceUrl || "",
-      "カスタムチェック": encodeList(p.customChecked), "決定ステータス": p.status
+      "カスタムチェック": encodeList(p.customChecked), "決定ステータス": p.status,
+      "お気に入り": p.favorite ? "__YES__" : "__NO__", "タグ": p.tags || []
     };
   }
   function loadProperties() {
@@ -1180,7 +1187,27 @@
     sorted.forEach(function (p) {
       var tr = document.createElement("tr");
 
+      var tdFav = document.createElement("td");
+      tdFav.setAttribute("data-label", "お気に入り");
+      var favBtn = document.createElement("button");
+      favBtn.type = "button";
+      favBtn.className = "fav-btn" + (p.favorite ? " on" : "");
+      favBtn.textContent = p.favorite ? "★" : "☆";
+      favBtn.title = p.favorite ? "お気に入りを解除" : "お気に入りに追加";
+      favBtn.addEventListener("click", function () {
+        p.favorite = !p.favorite;
+        renderAll();
+        notionUpdateSafe(p.notionId, { "お気に入り": p.favorite ? "__YES__" : "__NO__" }, "お気に入りの同期に失敗しました");
+      });
+      tdFav.appendChild(favBtn);
+
       var tdName = createNameCell(p.name);
+      if ((p.tags || []).indexOf("募集終了") !== -1) {
+        var expiredTag = document.createElement("span");
+        expiredTag.className = "expired-tag";
+        expiredTag.textContent = "募集終了";
+        tdName.appendChild(expiredTag);
+      }
       var tdInfo = createPropertyInfoCell(p);
 
       var tdScore = document.createElement("td");
@@ -1228,7 +1255,7 @@
       }, p.notionId, "物件の削除の同期に失敗しました");
       tdRm.appendChild(rmBtn);
 
-      tr.appendChild(tdName); tr.appendChild(tdInfo);
+      tr.appendChild(tdFav); tr.appendChild(tdName); tr.appendChild(tdInfo);
       tr.appendChild(tdScore); tr.appendChild(tdStatus);
       tr.appendChild(tdExpand); tr.appendChild(tdRm);
       body.appendChild(tr);
@@ -1937,7 +1964,7 @@
         sunlight: document.getElementById("propSunlight").value || "普通",
         structure: document.getElementById("propStructure").value || "不明",
         sourceUrl: document.getElementById("propUrl").value.trim(),
-        customChecked: [], status: "検討中"
+        customChecked: [], status: "検討中", favorite: false, tags: []
       };
       state.properties.push(p);
       ["propName", "propRent", "propSize", "propAge", "propStation", "propFloor", "propUrl"].forEach(function (id) {
@@ -2030,8 +2057,8 @@
         state.discounts.push({ id: makeTempId(), notionId: null, name: name, status: "未検討" });
       });
       state.properties.push(
-        { id: makeTempId(), notionId: null, name: "○○マンション101", rent: 85000, size: 45, age: 10, stationMin: 8, floor: 3, direction: "南", sunlight: "良い", structure: "鉄筋コンクリート(RC)", sourceUrl: "https://suumo.jp/", customChecked: [], status: "有力候補" },
-        { id: makeTempId(), notionId: null, name: "△△荘202", rent: 62000, size: 28, age: 22, stationMin: 12, floor: 2, direction: "北東", sunlight: "普通", structure: "木造", sourceUrl: "", customChecked: [], status: "検討中" }
+        { id: makeTempId(), notionId: null, name: "○○マンション101", rent: 85000, size: 45, age: 10, stationMin: 8, floor: 3, direction: "南", sunlight: "良い", structure: "鉄筋コンクリート(RC)", sourceUrl: "https://suumo.jp/", customChecked: [], status: "有力候補", favorite: false, tags: [] },
+        { id: makeTempId(), notionId: null, name: "△△荘202", rent: 62000, size: 28, age: 22, stationMin: 12, floor: 2, direction: "北東", sunlight: "普通", structure: "木造", sourceUrl: "", customChecked: [], status: "検討中", favorite: false, tags: [] }
       );
       setSyncStatus("ローカルモードです(このページを閉じるとデータは消えます)");
       renderAll();
