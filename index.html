@@ -697,7 +697,7 @@
   var nextTempId = 1;
   var TEMP_ID_PREFIX = "temp-";
   var DEFAULT_BADGE_COLOR = "#999";
-  var PROP_DETAIL_COLSPAN = 6;
+  var PROP_DETAIL_COLSPAN = 7;
   var SCORE_THRESHOLD_GOOD = 65;
   var SCORE_THRESHOLD_FAIR = 40;
   var YEN_MIN_PLAUSIBLE = 1000;
@@ -1350,6 +1350,28 @@
           p.sourceUrl = v.trim(); renderAll();
           notionUpdateSafe(p.notionId, { "参照リンク": p.sourceUrl });
         }, "text");
+
+        var expiredLabel = document.createElement("label");
+        expiredLabel.className = "row";
+        expiredLabel.style.gap = "6px";
+        var expiredCheckbox = document.createElement("input");
+        expiredCheckbox.type = "checkbox";
+        expiredCheckbox.style.width = "auto"; expiredCheckbox.style.minHeight = "auto";
+        expiredCheckbox.checked = (p.tags || []).indexOf("募集終了") !== -1;
+        expiredCheckbox.addEventListener("change", function () {
+          var tags = (p.tags || []).slice();
+          var idx = tags.indexOf("募集終了");
+          if (expiredCheckbox.checked && idx === -1) tags.push("募集終了");
+          else if (!expiredCheckbox.checked && idx !== -1) tags.splice(idx, 1);
+          p.tags = tags;
+          renderAll();
+          notionUpdateSafe(p.notionId, { "タグ": tags }, "タグの同期に失敗しました");
+        });
+        expiredLabel.appendChild(expiredCheckbox);
+        var expiredLabelText = document.createElement("span");
+        expiredLabelText.textContent = "募集終了(リンク先で確認済み)";
+        expiredLabel.appendChild(expiredLabelText);
+        editGrid.appendChild(expiredLabel);
 
         detailCell.appendChild(editGrid);
 
