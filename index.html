@@ -276,6 +276,12 @@
     <div class="hint" style="margin-top:8px;">よく使う項目(タップで追加):</div>
     <div class="row" id="criteriaPresetRow" style="margin-top:4px; flex-wrap: wrap;"></div>
 
+    <div class="row" id="expiredToggleRow" style="margin-top:8px; display:none;">
+      <label class="row" style="gap:6px; font-size:0.85rem; color:var(--muted);">
+        <input type="checkbox" id="showExpiredProps" style="width:auto; min-height:auto;">
+        <span id="expiredToggleLabel">募集終了の物件も表示する</span>
+      </label>
+    </div>
     <div class="table-wrap prop-table-wrap">
       <table>
         <colgroup>
@@ -287,6 +293,7 @@
       </table>
     </div>
     <div class="empty" id="propEmpty">まだ候補物件が登録されていません</div>
+    <div class="empty" id="propHiddenNote" style="display:none;">登録済みの物件はすべて募集終了です(上のチェックを入れると表示されます)</div>
   </div>
 
   <div class="panel">
@@ -1180,9 +1187,21 @@
   function renderProperties() {
     var body = document.getElementById("propBody");
     body.innerHTML = "";
+
+    var isExpired = function (p) { return (p.tags || []).indexOf("募集終了") !== -1; };
+    var expiredCount = state.properties.filter(isExpired).length;
+    var toggleRow = document.getElementById("expiredToggleRow");
+    var toggleCheckbox = document.getElementById("showExpiredProps");
+    toggleRow.style.display = expiredCount ? "flex" : "none";
+    document.getElementById("expiredToggleLabel").textContent = "募集終了の物件も表示する(" + expiredCount + "件)";
+    var visible = (toggleCheckbox && toggleCheckbox.checked) ? state.properties : state.properties.filter(function (p) { return !isExpired(p); });
+
     document.getElementById("propEmpty").style.display = state.properties.length ? "none" : "block";
+    var propHidden = document.getElementById("propHiddenNote");
+    if (propHidden) propHidden.style.display = (state.properties.length && !visible.length) ? "block" : "none";
+
     var scores = computePropertyScores();
-    var sorted = state.properties.slice().sort(function (a, b) { return (scores[b.id] || 0) - (scores[a.id] || 0); });
+    var sorted = visible.slice().sort(function (a, b) { return (scores[b.id] || 0) - (scores[a.id] || 0); });
 
     sorted.forEach(function (p) {
       var tr = document.createElement("tr");
@@ -1949,6 +1968,10 @@
           });
       };
       reader.readAsDataURL(file);
+    });
+
+    document.getElementById("showExpiredProps").addEventListener("change", function () {
+      renderProperties();
     });
 
     document.getElementById("addPropBtn").addEventListener("click", function () {
