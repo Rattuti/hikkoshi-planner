@@ -1621,12 +1621,18 @@
     var canvas = document.getElementById("roomCanvas");
     var activePointerId = null;
 
+    // 費用グラフ(drawSeasonChart/drawQuoteChart)も含めて、resizeでの再描画は
+    // ここ1箇所にまとめてある。以前は別々にリスナーを登録していて、片方が
+    // デバウンス無しだったため、ウィンドウをドラッグして連続的にリサイズする
+    // 操作のたびに3つのグラフが毎フレーム再描画される無駄があった。
     var resizeTimer = null;
     window.addEventListener("resize", function () {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(function () {
         refreshRoomCanvasSize(canvas);
         drawRooms();
+        drawSeasonChart();
+        drawQuoteChart();
       }, 200);
     });
 
@@ -2065,10 +2071,6 @@
       input.value = "";
       renderAll();
       createAndSync(DS.discounts.id, { "項目名": name, "状態": "未検討" }, d, "割引項目の追加の同期に失敗しました");
-    });
-
-    window.addEventListener("resize", function () {
-      drawSeasonChart(); drawQuoteChart(); drawRooms();
     });
 
     if (NOTION_ENABLED) {
