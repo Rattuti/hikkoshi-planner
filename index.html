@@ -213,7 +213,7 @@
     </div>
     <div class="hint" style="margin-top:4px;">見積書の写真から金額を読み取る(任意・精度は完全ではないため確認してください)</div>
     <div class="row" style="margin-top:4px;">
-      <input type="file" id="quoteImageInput" accept="image/*">
+      <input type="file" id="quoteImageInput" accept="image/*" aria-label="見積書の写真から金額を読み取る">
       <span class="hint" id="ocrStatus" style="margin:0;"></span>
     </div>
     <button type="button" id="addQuoteBtn" style="margin-top:10px;">見積もりを追加</button>
@@ -270,7 +270,7 @@
     <div class="hint" style="margin-top:14px;">住み心地カスタムチェック項目(自由に追加・削除できます。各物件の詳細から当てはまる項目にチェックします)</div>
     <div class="criteria-list" id="criteriaMasterList" style="margin-top:8px;"></div>
     <div class="row" style="margin-top:8px;">
-      <input type="text" id="criteriaInput" placeholder="項目を追加(例: 収納が多い)">
+      <input type="text" id="criteriaInput" placeholder="項目を追加(例: 収納が多い)" aria-label="住み心地カスタムチェック項目を追加">
       <button type="button" class="secondary" id="addCriteriaBtn">追加</button>
     </div>
     <div class="hint" style="margin-top:8px;">よく使う項目(タップで追加):</div>
@@ -320,8 +320,9 @@
     <h2>割引・優待・補助制度チェックリスト</h2>
     <p class="desc">一般的なカテゴリの例です。具体的な制度名・条件は勤務先や自治体・引っ越し会社の公式情報をご確認ください。自由に項目の追加・削除もできます。</p>
     <div id="discountList"></div>
+    <div class="empty" id="discountEmpty" style="display:none;">登録済みの項目がありません(削除しきった場合は下から追加できます)</div>
     <div class="row" style="margin-top:8px;">
-      <input type="text" id="discountInput" placeholder="項目を追加(例: ○○市の転入補助金)">
+      <input type="text" id="discountInput" placeholder="項目を追加(例: ○○市の転入補助金)" aria-label="割引・優待・補助制度チェックリストの項目を追加">
       <button type="button" class="secondary" id="addDiscountBtn">追加</button>
     </div>
   </div>
@@ -907,7 +908,10 @@
   function renderQuotes() {
     var body = document.getElementById("quoteBody");
     body.innerHTML = "";
-    var sorted = state.quotes.slice().sort(function (a, b) { return (a.amount || Infinity) - (b.amount || Infinity); });
+    // "|| Infinity" だと見積額0円のケースがInfinity扱いになり最安のはずが最後に並ぶため、
+    // 数値かどうかで明示的に判定する。
+    var amountOrInfinity = function (n) { return typeof n === "number" ? n : Infinity; };
+    var sorted = state.quotes.slice().sort(function (a, b) { return amountOrInfinity(a.amount) - amountOrInfinity(b.amount); });
     document.getElementById("quoteEmpty").style.display = sorted.length ? "none" : "block";
     var cheapest = sorted.length ? sorted[0].amount : null;
     var bestCare = sorted.reduce(function (m, q) { return (q.care && (!m || q.care > m)) ? q.care : m; }, null);
@@ -1859,6 +1863,7 @@
   function renderDiscounts() {
     var list = document.getElementById("discountList");
     list.innerHTML = "";
+    document.getElementById("discountEmpty").style.display = state.discounts.length ? "none" : "block";
     state.discounts.forEach(function (d) {
       var row = document.createElement("div");
       row.className = "row between";
