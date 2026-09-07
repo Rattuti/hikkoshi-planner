@@ -1098,7 +1098,8 @@
       customChecked: customChecked,
       status: row["決定ステータス"] || "検討中",
       favorite: row["お気に入り"] === "__YES__",
-      tags: Array.isArray(row["タグ"]) ? row["タグ"] : []
+      tags: Array.isArray(row["タグ"]) ? row["タグ"] : [],
+      createdTime: row.createdTime || null
     };
   }
   function propToProps(p) {
@@ -1205,7 +1206,14 @@
     if (propHidden) propHidden.style.display = (state.properties.length && !visible.length) ? "block" : "none";
 
     var scores = computePropertyScores();
-    var sorted = visible.slice().sort(function (a, b) { return (scores[b.id] || 0) - (scores[a.id] || 0); });
+    var sorted = visible.slice().sort(function (a, b) {
+      var scoreDiff = (scores[b.id] || 0) - (scores[a.id] || 0);
+      if (scoreDiff !== 0) return scoreDiff;
+      // スコアが同点の場合は、新しく調べた(登録した)物件を上に出す
+      var ta = a.createdTime ? new Date(a.createdTime).getTime() : 0;
+      var tb = b.createdTime ? new Date(b.createdTime).getTime() : 0;
+      return tb - ta;
+    });
 
     sorted.forEach(function (p) {
       var tr = document.createElement("tr");
@@ -2020,7 +2028,8 @@
         sunlight: document.getElementById("propSunlight").value || "普通",
         structure: document.getElementById("propStructure").value || "不明",
         sourceUrl: document.getElementById("propUrl").value.trim(),
-        customChecked: [], status: "検討中", favorite: false, tags: []
+        customChecked: [], status: "検討中", favorite: false, tags: [],
+        createdTime: new Date().toISOString()
       };
       state.properties.push(p);
       ["propName", "propRent", "propSize", "propAge", "propStation", "propFloor", "propUrl"].forEach(function (id) {
