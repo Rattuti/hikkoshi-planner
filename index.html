@@ -692,6 +692,18 @@
     return TEMP_ID_PREFIX + (nextTempId++);
   }
 
+  function bindEnterToSubmit(fieldIds, buttonId) {
+    var button = document.getElementById(buttonId);
+    fieldIds.forEach(function (id) {
+      document.getElementById(id).addEventListener("keydown", function (e) {
+        if (e.key === "Enter" && !e.isComposing) {
+          e.preventDefault();
+          button.click();
+        }
+      });
+    });
+  }
+
   // ---------- App state ----------
   var state = { quotes: [], properties: [], criteria: [], discounts: [], rooms: [], address: { notionId: null, current: "", destination: "", householdType: "" } };
   var expandedProps = {};
@@ -1310,30 +1322,30 @@
         }
         editField("家賃(円)", p.rent, function (v) {
           p.rent = parseNumOrNull(v); renderAll();
-          notionUpdateSafe(p.notionId, { "家賃": p.rent });
+          notionUpdateSafe(p.notionId, { "家賃": p.rent }, "家賃の同期に失敗しました");
         });
         editField("広さ(m²)", p.size, function (v) {
           p.size = parseNumOrNull(v); renderAll();
-          notionUpdateSafe(p.notionId, { "広さ_m2": p.size });
+          notionUpdateSafe(p.notionId, { "広さ_m2": p.size }, "広さの同期に失敗しました");
         });
         editField("築年数", p.age, function (v) {
           p.age = parseNumOrNull(v); renderAll();
-          notionUpdateSafe(p.notionId, { "築年数": p.age });
+          notionUpdateSafe(p.notionId, { "築年数": p.age }, "築年数の同期に失敗しました");
         });
         editField("駅徒歩(分)", p.stationMin, function (v) {
           p.stationMin = parseNumOrNull(v); renderAll();
-          notionUpdateSafe(p.notionId, { "駅徒歩分": p.stationMin });
+          notionUpdateSafe(p.notionId, { "駅徒歩分": p.stationMin }, "駅徒歩の同期に失敗しました");
         });
         editField("階数", p.floor, function (v) {
           p.floor = parseNumOrNull(v); renderAll();
-          notionUpdateSafe(p.notionId, { "階数": p.floor });
+          notionUpdateSafe(p.notionId, { "階数": p.floor }, "階数の同期に失敗しました");
         });
 
         var dirLabel = document.createElement("label");
         dirLabel.textContent = "方角";
         var dirSelect = createSelect(DIRECTION_OPTIONS, p.direction, function (value) {
           p.direction = value; renderAll();
-          notionUpdateSafe(p.notionId, { "方角": p.direction });
+          notionUpdateSafe(p.notionId, { "方角": p.direction }, "方角の同期に失敗しました");
         });
         dirLabel.appendChild(dirSelect);
         editGrid.appendChild(dirLabel);
@@ -1342,7 +1354,7 @@
         sunLabel.textContent = "日当たり";
         var sunSelect = createSelect(SUNLIGHT_OPTIONS, p.sunlight, function (value) {
           p.sunlight = value; renderAll();
-          notionUpdateSafe(p.notionId, { "日当たり": p.sunlight });
+          notionUpdateSafe(p.notionId, { "日当たり": p.sunlight }, "日当たりの同期に失敗しました");
         });
         sunLabel.appendChild(sunSelect);
         editGrid.appendChild(sunLabel);
@@ -1351,14 +1363,14 @@
         structLabel.textContent = "建物構造";
         var structSelectEdit = createSelect(STRUCTURE_OPTIONS, p.structure, function (value) {
           p.structure = value; renderAll();
-          notionUpdateSafe(p.notionId, { "建物構造": p.structure });
+          notionUpdateSafe(p.notionId, { "建物構造": p.structure }, "建物構造の同期に失敗しました");
         });
         structLabel.appendChild(structSelectEdit);
         editGrid.appendChild(structLabel);
 
         editField("情報元URL", p.sourceUrl, function (v) {
           p.sourceUrl = v.trim(); renderAll();
-          notionUpdateSafe(p.notionId, { "参照リンク": p.sourceUrl });
+          notionUpdateSafe(p.notionId, { "参照リンク": p.sourceUrl }, "情報元URLの同期に失敗しました");
         }, "text");
 
         var expiredLabel = document.createElement("label");
@@ -1412,7 +1424,7 @@
               p.customChecked = p.customChecked.filter(function (n) { return n !== c.name; });
             }
             renderAll();
-            notionUpdateSafe(p.notionId, { "カスタムチェック": encodeList(p.customChecked) });
+            notionUpdateSafe(p.notionId, { "カスタムチェック": encodeList(p.customChecked) }, "住み心地チェックの同期に失敗しました");
           });
           var span = document.createElement("span"); span.textContent = c.name;
           row.appendChild(cb); row.appendChild(span);
@@ -2084,6 +2096,12 @@
       renderAll();
       createAndSync(DS.discounts.id, { "項目名": name, "状態": "未検討" }, d, "割引項目の追加の同期に失敗しました");
     });
+
+    bindEnterToSubmit(["quoteCompany", "quoteAmount", "quoteDate", "quoteNote"], "addQuoteBtn");
+    bindEnterToSubmit(["propName", "propRent", "propSize", "propAge", "propStation", "propFloor", "propUrl"], "addPropBtn");
+    bindEnterToSubmit(["criteriaInput"], "addCriteriaBtn");
+    bindEnterToSubmit(["roomName", "roomDepth", "roomWidth", "roomHeight"], "addRoomBtn");
+    bindEnterToSubmit(["discountInput"], "addDiscountBtn");
 
     if (NOTION_ENABLED) {
       setSyncStatus("Notionから読み込んでいます…");
