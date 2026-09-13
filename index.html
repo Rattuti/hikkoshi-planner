@@ -364,10 +364,13 @@
       }
 
       function getAppKey() {
-        var key = localStorage.getItem(APP_KEY_STORAGE);
+        var key = null;
+        try { key = localStorage.getItem(APP_KEY_STORAGE); } catch (err) { /* privateモード等でアクセス不可の場合は毎回入力を求める */ }
         if (!key) {
           key = window.prompt("Notion連携用のアプリキーを入力してください");
-          if (key) localStorage.setItem(APP_KEY_STORAGE, key);
+          if (key) {
+            try { localStorage.setItem(APP_KEY_STORAGE, key); } catch (err) { /* 保存できなくても今回のリクエストは続行する */ }
+          }
         }
         return key;
       }
@@ -380,7 +383,7 @@
           body: JSON.stringify(body)
         }).then(function (res) {
           if (res.status === 401) {
-            localStorage.removeItem(APP_KEY_STORAGE);
+            try { localStorage.removeItem(APP_KEY_STORAGE); } catch (err) { /* 削除できなくても認証エラー扱いは継続する */ }
             return Promise.reject({ code: "unauthorized", message: "アプリキーが正しくありません" });
           }
           if (!res.ok) {
@@ -2001,6 +2004,9 @@
       }
       statusEl.textContent = "画像を読み取り中...(数十秒かかる場合があります)";
       var reader = new FileReader();
+      reader.onerror = function () {
+        statusEl.textContent = "画像の読み込みに失敗しました。手入力してください。";
+      };
       reader.onload = function () {
         Tesseract.recognize(reader.result, "jpn+eng")
           .then(function (result) {
