@@ -1454,7 +1454,12 @@
       depth: typeof row["縦_cm"] === "number" ? row["縦_cm"] : 300,
       width: typeof row["横_cm"] === "number" ? row["横_cm"] : 300,
       height: typeof row["高さ_cm"] === "number" ? row["高さ_cm"] : 240,
-      points: decodePoints(row["頂点リスト_cm"])
+      points: decodePoints(row["頂点リスト_cm"]),
+      // 自動配置(左から順に並べる)だけだと、部屋数が多い・部屋が大きいと
+      // キャンバス外にはみ出して見切れることがある。手動でずらして
+      // 見える位置に調整できるよう、表示位置の補正値(px)を持たせる。
+      offsetX: typeof row["表示オフセットX"] === "number" ? row["表示オフセットX"] : 0,
+      offsetY: typeof row["表示オフセットY"] === "number" ? row["表示オフセットY"] : 0
     };
   }
   function roomFootprint(r) {
@@ -1614,17 +1619,20 @@
         return { x: (p.x - b.minX) * scale, y: (p.y - b.minY) * scale };
       });
       var wS = (b.maxX - b.minX) * scale, dS = (b.maxY - b.minY) * scale, hS = r.height * scale;
-      var originX = x + dS * cosA;
-      var originY = h - 34;
+      // 自動配置(左から順)の位置に、部屋ごとの手動オフセットを足し込む。
+      // 自動配置だけだと部屋数が多い時にキャンバス外へはみ出して見切れる
+      // ことがあるため、その回避用に手動でずらせるようにしている。
+      var originX = x + dS * cosA + (r.offsetX || 0);
+      var originY = h - 34 + (r.offsetY || 0);
       drawExtrudedPolygon(ctx, originX, originY, scaledPoints, hS, angle, {
         top: colorForIndex(i), base: colorForIndex(i)
       });
       ctx.fillStyle = "#374151"; ctx.font = "11px sans-serif"; ctx.textAlign = "center";
-      ctx.fillText(r.name, originX, h - 18);
+      ctx.fillText(r.name, originX, originY + 16);
       var dimText = r.points
         ? "多角形(" + r.points.length + "点)・高さ" + r.height + "cm"
         : r.width + "×" + r.depth + "×" + r.height + "cm";
-      ctx.fillText(dimText, originX, h - 5);
+      ctx.fillText(dimText, originX, originY + 29);
       x += wS + dS * 0.6 + gap;
     });
     ctx.restore();
@@ -1861,6 +1869,30 @@
         });
         tag.appendChild(toPolyBtn);
       }
+
+      // 表示オフセット: 自動配置(左から順)だけだと、部屋数が多い・部屋が
+      // 大きい場合にキャンバス外へはみ出して見切れることがある。実寸(cm)とは
+      // 無関係な「見た目上の表示位置」の補正値(px)なので、0や負の値も含め
+      // 自由に入力できるようにする(dimInputは正の実寸専用のため別実装)。
+      function offsetInput(propName, notionKey, labelText) {
+        var wrap = document.createElement("span");
+        wrap.className = "dim-x";
+        wrap.textContent = labelText;
+        tag.appendChild(wrap);
+        var input = document.createElement("input");
+        input.type = "number";
+        input.step = "5";
+        input.value = r[propName] || 0;
+        input.title = labelText + "(px、見た目の位置調整用。実寸には影響しません)";
+        input.addEventListener("change", function () {
+          var v = parseFloat(input.value);
+          if (isNaN(v)) v = 0;
+          commitRoomEdit(r, function () { r[propName] = v; }, { key: notionKey, value: v });
+        });
+        tag.appendChild(input);
+      }
+      offsetInput("offsetX", "表示オフセットX", "位置調整X");
+      offsetInput("offsetY", "表示オフセットY", "位置調整Y");
 
       var rm = createRemoveButton("✕", function () {
         state.rooms = state.rooms.filter(function (x) { return x.id !== r.id; });
