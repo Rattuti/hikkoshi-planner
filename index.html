@@ -1488,7 +1488,7 @@
   var roomCanvasSize = null;
   function refreshRoomCanvasSize(canvas) {
     var dpr = window.devicePixelRatio || 1;
-    var cssWidth = canvas.clientWidth || canvas.parentElement.clientWidth || 400;
+    var cssWidth = canvas.parentElement.clientWidth || canvas.clientWidth || 400;
     var cssHeight = parseInt(canvas.getAttribute("height"), 10) || 160;
     roomCanvasSize = { cssWidth: cssWidth, cssHeight: cssHeight, dpr: dpr };
   }
