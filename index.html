@@ -198,8 +198,8 @@
     <h2>業者見積もり比較</h2>
     <p class="desc">見積もりを取るたびに記録すると、最安値や差額がすぐ分かります。</p>
     <div class="form-grid">
-      <label>業者名<input type="text" id="quoteCompany" placeholder="例: ○○引越センター"></label>
-      <label>見積額(円)<input type="number" id="quoteAmount" placeholder="例: 65000"></label>
+      <label>業者名<input type="text" id="quoteCompany" placeholder="例: ○○引越センター" required></label>
+      <label>見積額(円)<input type="number" id="quoteAmount" placeholder="例: 65000" required></label>
       <label>取得日<input type="date" id="quoteDate"></label>
       <label>丁寧さ評価(1〜5・任意)
         <select id="quoteCare">
@@ -256,7 +256,7 @@
     <div class="row" id="propertySearchLinks" style="margin-top:8px; flex-wrap: wrap;"></div>
 
     <div class="form-grid" style="margin-top:14px;">
-      <label>物件名<input type="text" id="propName" placeholder="例: ○○マンション101"></label>
+      <label>物件名<input type="text" id="propName" placeholder="例: ○○マンション101" required></label>
       <label>住所<input type="text" id="propAddress" placeholder="例: 大阪府吹田市○○1-2-3"></label>
       <label>家賃(円)<input type="number" id="propRent" placeholder="例: 85000"></label>
       <label>広さ(m²)<input type="number" id="propSize" placeholder="例: 45"></label>
@@ -311,10 +311,10 @@
     <h2>部屋の簡易3D表示</h2>
     <p class="desc">採寸した縦・横・高さから、部屋の相対的な大きさを簡易的に立体表示します。</p>
     <div class="form-grid">
-      <label>部屋名<input type="text" id="roomName" placeholder="例: リビング"></label>
-      <label>縦(cm)<input type="number" id="roomDepth" placeholder="例: 350"></label>
-      <label>横(cm)<input type="number" id="roomWidth" placeholder="例: 450"></label>
-      <label>高さ(cm)<input type="number" id="roomHeight" placeholder="例: 240"></label>
+      <label>部屋名<input type="text" id="roomName" placeholder="例: リビング" required></label>
+      <label>縦(cm)<input type="number" id="roomDepth" placeholder="例: 350" min="1" required></label>
+      <label>横(cm)<input type="number" id="roomWidth" placeholder="例: 450" min="1" required></label>
+      <label>高さ(cm)<input type="number" id="roomHeight" placeholder="例: 240" min="1" required></label>
     </div>
     <button type="button" id="addRoomBtn">部屋を追加</button>
     <canvas id="roomCanvas" height="220" style="margin-top:14px;"></canvas>
@@ -1530,8 +1530,17 @@
           if (expiredCheckbox.checked && idx === -1) tags.push("募集終了");
           else if (!expiredCheckbox.checked && idx !== -1) tags.splice(idx, 1);
           p.tags = tags;
+          var statusProps = { "タグ": tags };
+          // 募集終了にチェックした時、決定ステータスがまだ初期値「検討中」のままなら
+          // 「見送り」に自動で寄せる(募集終了とステータスが別項目のため、ここを
+          // チェックしただけではステータス欄が古いまま放置され気づきにくいUXギャップの対策)。
+          // 既に「有力候補」等へ明示的に変更済みの場合は上書きしない。
+          if (expiredCheckbox.checked && p.status === "検討中") {
+            p.status = "見送り";
+            statusProps["決定ステータス"] = p.status;
+          }
           renderAll();
-          notionUpdateSafe(p.notionId, { "タグ": tags }, "タグの同期に失敗しました");
+          notionUpdateSafe(p.notionId, statusProps, "タグの同期に失敗しました");
         });
         expiredLabel.appendChild(expiredCheckbox);
         var expiredLabelText = document.createElement("span");
@@ -2135,9 +2144,14 @@
     });
 
     document.getElementById("addQuoteBtn").addEventListener("click", function () {
-      var company = document.getElementById("quoteCompany").value.trim();
-      var amountRaw = document.getElementById("quoteAmount").value;
-      if (!company || amountRaw === "") return;
+      var companyEl = document.getElementById("quoteCompany");
+      var amountEl = document.getElementById("quoteAmount");
+      var company = companyEl.value.trim();
+      var amountRaw = amountEl.value;
+      // 必須項目が未入力のまま「追加」を押しても無反応だったため、
+      // ブラウザ標準の入力エラー表示(reportValidity)で気づけるようにする。
+      if (!company) { companyEl.reportValidity(); return; }
+      if (amountRaw === "") { amountEl.reportValidity(); return; }
       var careRaw = document.getElementById("quoteCare").value;
       var q = {
         id: makeTempId(), notionId: null,
@@ -2206,8 +2220,9 @@
     });
 
     document.getElementById("addPropBtn").addEventListener("click", function () {
-      var name = document.getElementById("propName").value.trim();
-      if (!name) return;
+      var nameEl = document.getElementById("propName");
+      var name = nameEl.value.trim();
+      if (!name) { nameEl.reportValidity(); return; }
       function numOrNull(id) { return parseNumOrNull(document.getElementById(id).value); }
       var p = {
         id: makeTempId(), notionId: null,
@@ -2236,16 +2251,18 @@
 
     function addCriterion(name) {
       name = (name || "").trim();
-      if (!name || nameExists(state.criteria, name)) return;
+      if (!name || nameExists(state.criteria, name)) return false;
       var c = { id: makeTempId(), notionId: null, name: name };
       state.criteria.push(c);
       renderAll();
       createAndSync(DS.criteria.id, { "項目名": name }, c, "カスタム項目の追加の同期に失敗しました");
+      return true;
     }
     document.getElementById("addCriteriaBtn").addEventListener("click", function () {
       var input = document.getElementById("criteriaInput");
-      addCriterion(input.value);
-      input.value = "";
+      // 未入力/重複名で追加されなかった場合は入力欄をクリアしない
+      // (以前は常にクリアしていたため、重複名の時に入力内容が無言で消えていた)。
+      if (addCriterion(input.value)) input.value = "";
     });
 
     var CRITERIA_PRESETS = ["近くに児童館がある", "近くに図書館がある", "近くに公園がある", "近くにスーパーがある"];
@@ -2259,11 +2276,18 @@
     });
 
     document.getElementById("addRoomBtn").addEventListener("click", function () {
-      var name = document.getElementById("roomName").value.trim();
-      var depth = parseFloat(document.getElementById("roomDepth").value);
-      var width = parseFloat(document.getElementById("roomWidth").value);
-      var height = parseFloat(document.getElementById("roomHeight").value);
-      if (!name || !depth || !width || !height) return;
+      var nameEl = document.getElementById("roomName");
+      var depthEl = document.getElementById("roomDepth");
+      var widthEl = document.getElementById("roomWidth");
+      var heightEl = document.getElementById("roomHeight");
+      var name = nameEl.value.trim();
+      var depth = parseFloat(depthEl.value);
+      var width = parseFloat(widthEl.value);
+      var height = parseFloat(heightEl.value);
+      if (!name) { nameEl.reportValidity(); return; }
+      if (!depth) { depthEl.reportValidity(); return; }
+      if (!width) { widthEl.reportValidity(); return; }
+      if (!height) { heightEl.reportValidity(); return; }
       var r = { id: makeTempId(), notionId: null, name: name, depth: depth, width: width, height: height, points: null };
       state.rooms.push(r);
       ["roomName", "roomDepth", "roomWidth", "roomHeight"].forEach(function (id) { document.getElementById(id).value = ""; });
