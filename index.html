@@ -305,6 +305,7 @@
     <div id="propMap" style="height:320px; border-radius:8px; overflow:hidden; border:1px solid var(--border);"></div>
     <div class="empty" id="propMapEmpty">住所が登録された物件がまだありません</div>
     <div class="hint" id="propMapStatus" style="margin-top:6px;"></div>
+    <button type="button" class="secondary" id="regeocodeAllBtn" style="margin-top:6px;">全物件の位置を検索し直す</button>
   </div>
 
   <div class="panel">
@@ -1151,7 +1152,11 @@
     return loadActiveRows(DS.properties.view, propRowToItem);
   }
 
-  // ---------- 住所→位置検索(ジオコーディング、OpenStreetMap Nominatim、APIキー不要) ----------
+  // ---------- 住所→位置検索(ジオコーディング、APIキー不要) ----------
+  // 日本の住所(番地)に強い国土地理院の住所検索を優先し、見つからない・使えない
+  // 場合のみOpenStreetMap Nominatimを使う。国土地理院の検索は地理院地図が内部で
+  // 使っているもので公式に保証されたAPIではないため、失敗時は黙ってフォールバックする。
+  // どちらの結果も、住所の市区町村名を含まないもの(別の場所の取り違え)は採用しない。
   // Nominatimの利用ポリシー上、連続リクエストは間隔を空ける(目安1件/秒)ため、
   // 直列キューで1件ずつ処理する。住所テキストの同期・地図表示は、Notion側に
   // 「住所」「緯度」「経度」列が無くても壊れないよう、他のプロパティとは別に
@@ -1159,14 +1164,45 @@
   // なるのを避けるため)。
   var geocodeQueue = [];
   var geocodeRunning = false;
-  function geocodeAddress(query) {
-    var url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(query);
+  // 住所から市区町村名を取り出す(例: "京都府宇治市伊勢田町中山" → "宇治市")。取れなければ空文字。
+  function extractCityName(address) {
+    var m = address.replace(/^(東京都|北海道|京都府|大阪府|.{2,3}県)/, "")
+      .replace(/^[^市]+?郡(?=[^市]+?[町村])/, "")
+      .match(/^(.+?[市区町村])/);
+    return m ? m[1] : "";
+  }
+  function geocodeMatchesCity(city, placeName) {
+    return !city || (placeName || "").indexOf(city) !== -1;
+  }
+  function geocodeWithGsi(query, city) {
+    var url = "https://msearch.gsi.go.jp/address-search/AddressSearch?q=" + encodeURIComponent(query);
+    return fetch(url).then(function (res) {
+      if (!res.ok) throw new Error("gsi http " + res.status);
+      return res.json();
+    }).then(function (list) {
+      var hit = (list || []).filter(function (f) {
+        return f && f.geometry && f.properties && geocodeMatchesCity(city, f.properties.title);
+      })[0];
+      if (!hit) return null;
+      return { lat: hit.geometry.coordinates[1], lng: hit.geometry.coordinates[0] };
+    });
+  }
+  function geocodeWithNominatim(query, city) {
+    var url = "https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=jp&q=" + encodeURIComponent(query);
     return fetch(url, { headers: { "Accept": "application/json" } }).then(function (res) {
       if (!res.ok) throw new Error("geocode http " + res.status);
       return res.json();
     }).then(function (list) {
-      if (!list || !list.length) return null;
-      return { lat: parseFloat(list[0].lat), lng: parseFloat(list[0].lon) };
+      var hit = (list || []).filter(function (x) { return geocodeMatchesCity(city, x.display_name); })[0];
+      if (!hit) return null;
+      return { lat: parseFloat(hit.lat), lng: parseFloat(hit.lon) };
+    });
+  }
+  function geocodeAddress(address) {
+    var query = address.replace(/[（(][^）)]*[）)]/g, "").trim() || address;
+    var city = extractCityName(query);
+    return geocodeWithGsi(query, city).catch(function () { return null; }).then(function (loc) {
+      return loc || geocodeWithNominatim(query, city);
     });
   }
   function syncPropertyLocation(p) {
@@ -1186,6 +1222,7 @@
         p.lat = loc.lat; p.lng = loc.lng;
         syncPropertyLocation(p);
         renderPropertyMap();
+        if (status && !geocodeQueue.length) status.textContent = "位置の検索が完了しました";
       } else if (status) {
         status.textContent = "「" + p.name + "」の住所から位置を特定できませんでした(住所の表記を見直すか、詳細から手動で再検索してください)";
       }
@@ -2251,6 +2288,13 @@
       renderProperties();
     });
 
+    // 登録済みの位置も含めて、住所のある全物件を検索し直す(検索方法の改善前に取得した位置の修正用)
+    document.getElementById("regeocodeAllBtn").addEventListener("click", function () {
+      var targets = state.properties.filter(function (p) { return p.address; });
+      if (!targets.length) return;
+      if (!window.confirm("住所のある" + targets.length + "件の位置を検索し直します(1件あたり約1秒かかります)。よろしいですか?")) return;
+      targets.forEach(queueGeocode);
+    });
     document.getElementById("addPropBtn").addEventListener("click", function () {
       var nameEl = document.getElementById("propName");
       var name = nameEl.value.trim();
