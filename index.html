@@ -243,6 +243,14 @@
   </div>
 
   <div class="panel">
+    <h2>候補物件マップ</h2>
+    <p class="desc">住所が登録・位置検索できた物件だけ、簡易な点(○)で表示します(OpenStreetMapのデータを利用)。</p>
+    <div id="propMap" style="height:320px; border-radius:8px; overflow:hidden; border:1px solid var(--border);"></div>
+    <div class="empty" id="propMapEmpty">住所が登録された物件がまだありません</div>
+    <div class="hint" id="propMapStatus" style="margin-top:6px;"></div>
+  </div>
+
+  <div class="panel">
     <h2>候補物件・住み心地判定</h2>
     <p class="desc">登録した候補同士の相対比較によるスコアです(絶対的な良し悪しの判定ではありません)。</p>
 
@@ -297,14 +305,6 @@
     </div>
     <div class="empty" id="propEmpty">まだ候補物件が登録されていません</div>
     <div class="empty" id="propHiddenNote" style="display:none;">登録済みの物件はすべて募集終了です(上のチェックを入れると表示されます)</div>
-  </div>
-
-  <div class="panel">
-    <h2>候補物件マップ</h2>
-    <p class="desc">住所が登録・位置検索できた物件だけ、簡易な点(○)で表示します(OpenStreetMapのデータを利用)。</p>
-    <div id="propMap" style="height:320px; border-radius:8px; overflow:hidden; border:1px solid var(--border);"></div>
-    <div class="empty" id="propMapEmpty">住所が登録された物件がまだありません</div>
-    <div class="hint" id="propMapStatus" style="margin-top:6px;"></div>
   </div>
 
   <div class="panel">
@@ -1201,6 +1201,43 @@
     if (geocodeQueue.indexOf(p) === -1) geocodeQueue.push(p);
     processGeocodeQueue();
   }
+  // 住所の変更(一覧の詳細・地図のポップアップ共通)。住所をNotionへ同期し、
+  // 地図上の位置も新しい住所で再検索する(古い位置のまま残らないように)。
+  function updatePropertyAddress(p, value) {
+    var next = (value || "").trim();
+    if (next === (p.address || "")) return;
+    p.address = next;
+    renderAll();
+    syncPropertyLocation(p);
+    queueGeocode(p);
+  }
+
+  function buildMapPopup(p) {
+    var wrap = document.createElement("div");
+    wrap.innerHTML = "<b>" + escapeHtml(p.name) + "</b>" +
+      (p.rent != null ? "<br>家賃: " + formatYen(p.rent) : "") +
+      (p.stationMin != null ? "<br>駅徒歩: " + p.stationMin + "分" : "");
+    var label = document.createElement("label");
+    label.textContent = "住所";
+    label.style.cssText = "display:block; margin-top:6px; font-size:0.8rem;";
+    var input = document.createElement("input");
+    input.type = "text"; input.value = p.address || "";
+    input.style.cssText = "display:block; width:100%; min-width:200px; margin-top:2px;";
+    label.appendChild(input);
+    var btn = document.createElement("button");
+    btn.type = "button"; btn.textContent = "住所を更新";
+    btn.style.marginTop = "6px";
+    function submit() {
+      if (!input.value.trim()) { input.focus(); return; }
+      if (propMapInstance) propMapInstance.closePopup();
+      updatePropertyAddress(p, input.value);
+    }
+    btn.addEventListener("click", submit);
+    input.addEventListener("keydown", function (e) { if (e.key === "Enter") submit(); });
+    wrap.appendChild(label); wrap.appendChild(btn);
+    L.DomEvent.disableClickPropagation(wrap);
+    return wrap;
+  }
 
   var propMapInstance = null;
   var propMapLayer = null;
@@ -1234,11 +1271,7 @@
         fillOpacity: 0.7,
         weight: 2
       });
-      var popupText = "<b>" + escapeHtml(p.name) + "</b>" +
-        (p.rent != null ? "<br>家賃: " + formatYen(p.rent) : "") +
-        (p.stationMin != null ? "<br>駅徒歩: " + p.stationMin + "分" : "") +
-        (p.address ? "<br>" + escapeHtml(p.address) : "");
-      marker.bindPopup(popupText);
+      marker.bindPopup(function () { return buildMapPopup(p); });
       marker.addTo(propMapLayer);
       bounds.push([p.lat, p.lng]);
     });
@@ -1444,8 +1477,7 @@
           return input;
         }
         var addressInput = editField("住所", p.address, function (v) {
-          p.address = v.trim(); renderAll();
-          syncPropertyLocation(p);
+          updatePropertyAddress(p, v);
         }, "text");
         var geocodeBtn = document.createElement("button");
         geocodeBtn.type = "button"; geocodeBtn.className = "secondary";
