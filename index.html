@@ -638,7 +638,8 @@
   // 文字列全体でなくテキスト中のURLトークンを個別に抽出する。
   function extractUrls(text) {
     if (!text) return [];
-    var matches = text.match(/https?:\/\/[^\s"'<>]+/g) || [];
+    // Notionのリンク付きテキストは "[URL](URL)" の形で返るため、角括弧・丸括弧でも区切る
+    var matches = text.match(/https?:\/\/[^\s"'<>\[\]()（）]+/g) || [];
     var seen = {};
     var result = [];
     matches.forEach(function (u) {
@@ -1254,6 +1255,21 @@
     wrap.innerHTML = "<b>" + escapeHtml(p.name) + "</b>" +
       (p.rent != null ? "<br>家賃: " + formatYen(p.rent) : "") +
       (p.stationMin != null ? "<br>駅徒歩: " + p.stationMin + "分" : "");
+    var sourceUrls = extractUrls(p.sourceUrl);
+    if (sourceUrls.length) {
+      var linkRow = document.createElement("div");
+      sourceUrls.forEach(function (u, i) {
+        var a = document.createElement("a");
+        a.href = u;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.title = u;
+        a.textContent = sourceUrls.length > 1 ? ("リンク" + (i + 1)) : "リンク";
+        a.style.marginRight = "8px";
+        linkRow.appendChild(a);
+      });
+      wrap.appendChild(linkRow);
+    }
     var label = document.createElement("label");
     label.textContent = "住所";
     label.style.cssText = "display:block; margin-top:6px; font-size:0.8rem;";
