@@ -19,6 +19,9 @@
     --keep: #4f8f6a;
     --consider: #c99a3f;
     --letgo: #b3546b;
+    /* --keepをそのまま小さな文字色に使うと白背景でコントラスト比3.84:1となりWCAG AA(4.5:1)を
+       下回るため、同系色でテキスト用にやや濃くした色(5.0:1)を別途用意する。 */
+    --keep-text: #437a5a;
   }
   * { box-sizing: border-box; }
   body {
@@ -75,7 +78,7 @@
   .rm-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.85rem; padding: 2px 6px; }
   .rm-btn:hover { color: var(--letgo); }
   .empty { color: var(--muted); text-align: center; padding: 24px 0; font-size: 0.88rem; }
-  .cheapest-tag { font-size: 0.7rem; color: var(--keep); font-weight: 700; margin-left: 4px; }
+  .cheapest-tag { font-size: 0.7rem; color: var(--keep-text); font-weight: 700; margin-left: 4px; }
   .expired-tag { font-size: 0.7rem; color: #fff; background: var(--letgo); padding: 2px 9px; border-radius: 999px; font-weight: 700; margin-left: 6px; white-space: nowrap; }
   .fav-btn { background: none; border: none; cursor: pointer; font-size: 1.2rem; line-height: 1; padding: 4px; color: var(--border); }
   .fav-btn.on { color: #e0b34a; }
@@ -1405,6 +1408,8 @@
           p.customChecked = (p.customChecked || []).filter(function (n) { return n !== c.name; });
         });
       }, c.notionId, "カスタム項目の削除の同期に失敗しました");
+      // 「✕」記号だけでは何を削除するボタンか読み上げで伝わらないため、項目名を含めたaria-labelを補う。
+      rm.setAttribute("aria-label", c.name + "を削除");
       chip.appendChild(label); chip.appendChild(rm);
       list.appendChild(chip);
     });
@@ -1444,6 +1449,9 @@
       favBtn.className = "fav-btn" + (p.favorite ? " on" : "");
       favBtn.textContent = p.favorite ? "★" : "☆";
       favBtn.title = p.favorite ? "お気に入りを解除" : "お気に入りに追加";
+      // ★/☆の記号だけだとスクリーンリーダーが「黒い星」のように読み上げ
+      // 操作内容が伝わらないため、titleと同じ文言をaria-labelにも設定する。
+      favBtn.setAttribute("aria-label", favBtn.title);
       favBtn.addEventListener("click", function () {
         p.favorite = !p.favorite;
         renderAll();
@@ -2061,6 +2069,7 @@
           var rmPointBtn = document.createElement("button");
           rmPointBtn.type = "button"; rmPointBtn.className = "rm-btn"; rmPointBtn.textContent = "✕";
           rmPointBtn.title = "この頂点を削除";
+          rmPointBtn.setAttribute("aria-label", "頂点" + (idx + 1) + "を削除");
           rmPointBtn.addEventListener("click", function () {
             if (r.points.length <= 3) return; // 三角形未満(閉じた図形にならない)にはしない
             commitRoomPoints(r, r.points.filter(function (_, i) { return i !== idx; }));
@@ -2132,6 +2141,8 @@
       var rm = createRemoveButton("✕", function () {
         state.rooms = state.rooms.filter(function (x) { return x.id !== r.id; });
       }, r.notionId, "部屋の削除の同期に失敗しました");
+      // 「✕」記号だけでは何を削除するボタンか読み上げで伝わらないため、部屋名を含めたaria-labelを補う。
+      rm.setAttribute("aria-label", r.name + "を削除");
       tag.appendChild(rm);
       list.appendChild(tag);
     });
@@ -2307,7 +2318,12 @@
     // 登録済みの位置も含めて、住所のある全物件を検索し直す(検索方法の改善前に取得した位置の修正用)
     document.getElementById("regeocodeAllBtn").addEventListener("click", function () {
       var targets = state.properties.filter(function (p) { return p.address; });
-      if (!targets.length) return;
+      if (!targets.length) {
+        // 押しても無反応に見えないよう、対象が無い理由を明示する
+        var status = document.getElementById("propMapStatus");
+        if (status) status.textContent = "住所が登録された物件がないため、検索し直せません";
+        return;
+      }
       if (!window.confirm("住所のある" + targets.length + "件の位置を検索し直します(1件あたり約1秒かかります)。よろしいですか?")) return;
       targets.forEach(queueGeocode);
     });
