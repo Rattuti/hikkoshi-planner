@@ -22,6 +22,9 @@
     /* --keepをそのまま小さな文字色に使うと白背景でコントラスト比3.84:1となりWCAG AA(4.5:1)を
        下回るため、同系色でテキスト用にやや濃くした色(5.0:1)を別途用意する。 */
     --keep-text: #437a5a;
+    /* 同様に--letgoも#syncStatus(背景はvar(--bg))で4.43:1とAAを僅かに下回るため、
+       同系色でテキスト用にやや濃くした色(白背景5.5:1 / var(--bg)背景5.11:1)を別途用意する。 */
+    --letgo-text: #a44d62;
   }
   * { box-sizing: border-box; }
   body {
@@ -56,7 +59,7 @@
   button:hover { background: var(--accent-dark); }
   button.secondary { background: #fff; color: var(--text); border: 1px solid var(--border); }
   .hint { font-size: 0.8rem; color: var(--muted); margin-top: 8px; }
-  .hint.sync-error { color: var(--letgo); }
+  .hint.sync-error { color: var(--letgo-text); }
   .search-link {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 7px 14px; border-radius: 6px; font-size: 0.85rem;
@@ -2013,6 +2016,8 @@
       var nameInput = document.createElement("input");
       nameInput.type = "text";
       nameInput.value = r.name;
+      // この入力欄には<label>もplaceholderも無く、読み上げで何の項目か伝わらないため補う。
+      nameInput.setAttribute("aria-label", "部屋名");
       nameInput.addEventListener("change", function () {
         var v = nameInput.value.trim();
         if (!v) { nameInput.value = r.name; return; }
@@ -2366,11 +2371,21 @@
       createAndSync(DS.criteria.id, { "項目名": name }, c, "カスタム項目の追加の同期に失敗しました");
       return true;
     }
+    var criteriaInput = document.getElementById("criteriaInput");
+    // 重複名で追加されなかった時、入力欄をクリアしない(以前からの対策)だけでは
+    // 「なぜ追加されないか」が伝わらず無反応に見えるため、ブラウザ標準の
+    // reportValidity()で理由を表示する(他の必須項目のエラー表示と同じ手段)。
+    criteriaInput.addEventListener("input", function () { criteriaInput.setCustomValidity(""); });
     document.getElementById("addCriteriaBtn").addEventListener("click", function () {
-      var input = document.getElementById("criteriaInput");
-      // 未入力/重複名で追加されなかった場合は入力欄をクリアしない
-      // (以前は常にクリアしていたため、重複名の時に入力内容が無言で消えていた)。
-      if (addCriterion(input.value)) input.value = "";
+      var name = criteriaInput.value.trim();
+      if (!name) { criteriaInput.setCustomValidity("項目名を入力してください"); criteriaInput.reportValidity(); return; }
+      if (nameExists(state.criteria, name)) {
+        criteriaInput.setCustomValidity("同じ項目が既にあります");
+        criteriaInput.reportValidity();
+        return;
+      }
+      criteriaInput.setCustomValidity("");
+      if (addCriterion(criteriaInput.value)) criteriaInput.value = "";
     });
 
     var CRITERIA_PRESETS = ["近くに児童館がある", "近くに図書館がある", "近くに公園がある", "近くにスーパーがある"];
@@ -2403,13 +2418,22 @@
       createAndSync(DS.rooms.id, { "部屋名": name, "縦_cm": depth, "横_cm": width, "高さ_cm": height }, r, "部屋の追加の同期に失敗しました");
     });
 
+    var discountInput = document.getElementById("discountInput");
+    // 未入力/重複名の時に無反応に見える(クリックしても何も起きない)問題への対策。
+    // 他の必須項目と同じreportValidity()で理由を表示する(criteriaInputと同様)。
+    discountInput.addEventListener("input", function () { discountInput.setCustomValidity(""); });
     document.getElementById("addDiscountBtn").addEventListener("click", function () {
-      var input = document.getElementById("discountInput");
-      var name = input.value.trim();
-      if (!name || nameExists(state.discounts, name)) return;
+      var name = discountInput.value.trim();
+      if (!name) { discountInput.setCustomValidity("項目名を入力してください"); discountInput.reportValidity(); return; }
+      if (nameExists(state.discounts, name)) {
+        discountInput.setCustomValidity("同じ項目が既にあります");
+        discountInput.reportValidity();
+        return;
+      }
+      discountInput.setCustomValidity("");
       var d = { id: makeTempId(), notionId: null, name: name, status: "未検討" };
       state.discounts.push(d);
-      input.value = "";
+      discountInput.value = "";
       renderAll();
       createAndSync(DS.discounts.id, { "項目名": name, "状態": "未検討" }, d, "割引項目の追加の同期に失敗しました");
     });
