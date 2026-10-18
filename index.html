@@ -13,7 +13,10 @@
     --panel: #ffffff;
     --border: #dde6e6;
     --text: #22302f;
-    --muted: #6b7f7f;
+    /* 元は#6b7f7f。.hint/.desc/th等の本文テキスト色として広く使われているが、
+       白背景で4.23:1・var(--bg)背景で3.92:1となりWCAG AA(4.5:1)をどちらも
+       下回っていたため、同系色で両背景とも4.5:1を超えるまで濃くした。 */
+    --muted: #5c6d6d;
     --accent: #2f7d8c;
     --accent-dark: #245f6b;
     --keep: #4f8f6a;
@@ -84,7 +87,10 @@
   .cheapest-tag { font-size: 0.7rem; color: var(--keep-text); font-weight: 700; margin-left: 4px; }
   .expired-tag { font-size: 0.7rem; color: #fff; background: var(--letgo); padding: 2px 9px; border-radius: 999px; font-weight: 700; margin-left: 6px; white-space: nowrap; }
   .fav-btn { background: none; border: none; cursor: pointer; font-size: 1.2rem; line-height: 1; padding: 4px; color: var(--border); }
-  .fav-btn.on { color: #e0b34a; }
+  /* 元は#e0b34a。白背景でのコントラスト比が1.96:1と、アイコンに求められる
+     WCAG非テキストコントラスト基準(3:1)を大きく下回っていたため、同系色の
+     金色でそれを超えるまで濃くした(3.79:1)。 */
+  .fav-btn.on { color: #a67c2e; }
 
   .info-chip-list { display: flex; flex-wrap: wrap; gap: 4px 14px; }
   .info-chip { display: flex; align-items: baseline; gap: 4px; font-size: 0.78rem; white-space: nowrap; }
@@ -557,10 +563,13 @@
 
   function notionUpdateSafe(pageId, properties, errorMessage) {
     if (!NOTION_ENABLED) return;
-    var promise = notionUpdate(pageId, properties);
-    if (errorMessage) {
-      promise.catch(function (err) { setSyncStatus(errorMessage + "(" + (err && err.code) + ")", true); });
-    }
+    // errorMessageがnull(住所・緯度・経度など意図的に無言で送る呼び出し)の場合も
+    // 必ず.catch()を付ける。以前はここでif分岐の外に出ており、errorMessage無しの
+    // 呼び出しで実際に通信が失敗すると、どこからも拾われないPromise拒否
+    // (Uncaught (in promise))になっていた。
+    notionUpdate(pageId, properties).catch(function (err) {
+      if (errorMessage) setSyncStatus(errorMessage + "(" + (err && err.code) + ")", true);
+    });
   }
 
   function createAndSync(dsId, properties, item, errorMessage, onCreated) {
@@ -2031,6 +2040,8 @@
         input.min = "1";
         input.value = r[propName];
         input.title = suffixText;
+        // titleだけではスクリーンリーダーで項目名が読み上げられないため、同じ文言をaria-labelにも補う。
+        input.setAttribute("aria-label", r.name ? (r.name + "の" + suffixText) : suffixText);
         input.addEventListener("change", function () {
           var v = parseFloat(input.value);
           if (!v || v <= 0) { input.value = r[propName]; return; }
@@ -2059,8 +2070,11 @@
           row.className = "poly-point-row";
           var xInput = document.createElement("input");
           xInput.type = "number"; xInput.value = p.x; xInput.title = "X(cm)";
+          // titleだけではスクリーンリーダーで項目名が読み上げられないため、同じ文言をaria-labelにも補う。
+          xInput.setAttribute("aria-label", "頂点" + (idx + 1) + "のX(cm)");
           var yInput = document.createElement("input");
           yInput.type = "number"; yInput.value = p.y; yInput.title = "Y(cm)";
+          yInput.setAttribute("aria-label", "頂点" + (idx + 1) + "のY(cm)");
           function commitPointEdit() {
             var xv = parseFloat(xInput.value), yv = parseFloat(yInput.value);
             if (isNaN(xv) || isNaN(yv)) return;
@@ -2133,6 +2147,8 @@
         input.step = "5";
         input.value = r[propName] || 0;
         input.title = labelText + "(px、見た目の位置調整用。実寸には影響しません)";
+        // titleだけではスクリーンリーダーで項目名が読み上げられないため、同じ文言をaria-labelにも補う。
+        input.setAttribute("aria-label", (r.name ? (r.name + "の") : "") + input.title);
         input.addEventListener("change", function () {
           var v = parseFloat(input.value);
           if (isNaN(v)) v = 0;
@@ -2394,7 +2410,15 @@
       var btn = document.createElement("button");
       btn.type = "button"; btn.className = "secondary";
       btn.textContent = "+ " + name;
-      btn.addEventListener("click", function () { addCriterion(name); });
+      btn.addEventListener("click", function () {
+        // 既に追加済みの項目をタップすると、addCriterion内部のnameExists判定で
+        // 何も起きず押しても無反応に見えていたため、他の重複名入力と同じ
+        // reportValidity()で理由を表示する。
+        if (!addCriterion(name)) {
+          criteriaInput.setCustomValidity(name + "は既に追加されています");
+          criteriaInput.reportValidity();
+        }
+      });
       presetRow.appendChild(btn);
     });
 
