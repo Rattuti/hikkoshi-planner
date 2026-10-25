@@ -1057,7 +1057,9 @@
       var y = padTop + chartH - barH;
       ctx.fillStyle = m.level >= 4 ? "#b3546b" : (m.level <= 2 ? "#4f8f6a" : "#c99a3f");
       ctx.fillRect(x, y, barWidth, barH);
-      ctx.fillStyle = "#6b7f7f";
+      // CSS変数--mutedは白背景4.5:1を満たすよう#6b7f7f→#5c6d6dに修正済み(上のコメント参照)だが、
+      // canvas描画はCSS変数を参照できず旧色のまま残っていたため、同じ値に揃える。
+      ctx.fillStyle = "#5c6d6d";
       ctx.textAlign = "center";
       ctx.fillText(m.month, x + barWidth / 2, padTop + chartH + 14);
     });
@@ -1071,7 +1073,9 @@
     legend.innerHTML = "";
     var dated = state.quotes.filter(function (q) { return q.date && typeof q.amount === "number"; });
     if (!dated.length) {
-      ctx.fillStyle = "#9ca3af";
+      // #9ca3afは白背景で2.5:1程度しかなくWCAG AA(4.5:1)を下回るため、
+      // --mutedと同じ#5c6d6d(4.5:1超)に揃える。
+      ctx.fillStyle = "#5c6d6d";
       ctx.font = "13px sans-serif";
       ctx.textAlign = "center";
       ctx.fillText("日付付きの見積もりを登録すると、ここに推移が表示されます", w / 2, h / 2);
@@ -1091,7 +1095,8 @@
     function xFor(dateStr) { return padLeft + ((new Date(dateStr).getTime() - t0) / (t1 - t0)) * chartW; }
     function yFor(amount) { return padTop + chartH - ((amount - minAmt) / (maxAmt - minAmt)) * chartH; }
 
-    ctx.strokeStyle = "#dde6e6"; ctx.fillStyle = "#6b7f7f"; ctx.font = "10px sans-serif"; ctx.textAlign = "right";
+    // 同上の理由で#6b7f7fではなく--mutedと同じ#5c6d6dを使う。
+    ctx.strokeStyle = "#dde6e6"; ctx.fillStyle = "#5c6d6d"; ctx.font = "10px sans-serif"; ctx.textAlign = "right";
     for (var s = 0; s <= 4; s++) {
       var y = padTop + chartH - (chartH * s / 4);
       ctx.beginPath(); ctx.moveTo(padLeft, y); ctx.lineTo(padLeft + chartW, y); ctx.stroke();
@@ -1838,7 +1843,8 @@
     var setup = setupRoomCanvas(canvas);
     var ctx = setup.ctx, w = setup.w, h = setup.h;
     if (!state.rooms.length) {
-      ctx.fillStyle = "#9ca3af"; ctx.font = "13px sans-serif"; ctx.textAlign = "center";
+      // #9ca3afは白背景で2.5:1程度しかなくWCAG AA(4.5:1)を下回るため、--mutedと同じ#5c6d6dにする。
+      ctx.fillStyle = "#5c6d6d"; ctx.font = "13px sans-serif"; ctx.textAlign = "center";
       ctx.fillText("部屋を追加すると、ここに簡易3D表示されます", w / 2, h / 2);
       return;
     }
