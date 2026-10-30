@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>引っ越しプランナー</title>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -2309,10 +2308,27 @@
       var file = e.target.files && e.target.files[0];
       var statusEl = document.getElementById("ocrStatus");
       if (!file) return;
-      if (typeof Tesseract === "undefined") {
+      statusEl.textContent = "読み取りの準備中...";
+      loadTesseract().then(function () { runOcr(file, statusEl); }, function () {
         statusEl.textContent = "OCRライブラリの読み込みに失敗しました(通信環境をご確認ください)";
-        return;
-      }
+      });
+    });
+    // OCRライブラリは見積書の画像を選んだ時にだけ使うので、ページ表示を遅くしないよう
+    // 初回利用時に読み込む(以前は<head>で毎回読み込んでいた)
+    var tesseractLoading = null;
+    function loadTesseract() {
+      if (typeof Tesseract !== "undefined") return Promise.resolve();
+      if (tesseractLoading) return tesseractLoading;
+      tesseractLoading = new Promise(function (resolve, reject) {
+        var sc = document.createElement("script");
+        sc.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+        sc.onload = function () { typeof Tesseract !== "undefined" ? resolve() : reject(new Error("Tesseract undefined")); };
+        sc.onerror = function () { tesseractLoading = null; sc.remove(); reject(new Error("load failed")); };
+        document.head.appendChild(sc);
+      });
+      return tesseractLoading;
+    }
+    function runOcr(file, statusEl) {
       statusEl.textContent = "画像を読み取り中...(数十秒かかる場合があります)";
       var reader = new FileReader();
       reader.onerror = function () {
@@ -2336,7 +2352,7 @@
           });
       };
       reader.readAsDataURL(file);
-    });
+    }
 
     document.getElementById("showExpiredProps").addEventListener("change", function () {
       renderProperties();
