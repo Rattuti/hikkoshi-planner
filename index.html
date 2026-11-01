@@ -246,10 +246,10 @@
   <div class="panel">
     <h2>費用の目安グラフ</h2>
     <p class="desc">上段は一般的な季節傾向の目安(参考情報・実際の価格ではありません)。下段は、あなたが記録した実際の見積もりの推移です。</p>
-    <div class="hint" style="margin-top:0;">月別の混雑・価格帯の目安(相対レベル、1〜5)</div>
-    <canvas id="seasonChart" height="220"></canvas>
-    <div class="hint">あなたの見積もり実績の推移(業者ごとに色分け)</div>
-    <canvas id="quoteChart" height="280"></canvas>
+    <div class="hint" id="seasonChartDesc" style="margin-top:0;">月別の混雑・価格帯の目安(相対レベル、1〜5)</div>
+    <canvas id="seasonChart" height="220" role="img" aria-labelledby="seasonChartDesc"></canvas>
+    <div class="hint" id="quoteChartDesc">あなたの見積もり実績の推移(業者ごとに色分け)</div>
+    <canvas id="quoteChart" height="280" role="img" aria-labelledby="quoteChartDesc"></canvas>
     <div class="legend" id="quoteChartLegend"></div>
   </div>
 
@@ -329,7 +329,7 @@
       <label>高さ(cm)<input type="number" id="roomHeight" placeholder="例: 240" min="1" required></label>
     </div>
     <button type="button" id="addRoomBtn">部屋を追加</button>
-    <canvas id="roomCanvas" height="220" style="margin-top:14px;"></canvas>
+    <canvas id="roomCanvas" height="220" style="margin-top:14px;" role="img" aria-label="採寸した縦・横・高さに基づく部屋の簡易3D表示。各部屋の詳しい数値は下の一覧でご確認・編集できます。"></canvas>
     <div class="row" style="margin-top:8px;">
       <button type="button" class="secondary" id="roomRotateLeftBtn">⟲ 回転</button>
       <button type="button" class="secondary" id="roomRotateRightBtn">⟳ 回転</button>
@@ -573,9 +573,20 @@
 
   function createAndSync(dsId, properties, item, errorMessage, onCreated) {
     if (!NOTION_ENABLED) return;
+    var tempId = item.id;
     notionCreate(dsId, properties).then(function (res) {
       var created = res.payload && res.payload.pages && res.payload.pages[0];
-      if (created && created.id) { item.id = created.id; item.notionId = created.id; }
+      if (created && created.id) {
+        item.id = created.id; item.notionId = created.id;
+        // 追加した候補物件の詳細を開いたまま同期が完了すると、展開状態を
+        // 管理するexpandedPropsのキー(id)がtempIdから実IDに変わってしまい、
+        // 次の再描画で展開状態が見つからず無言で閉じたように見えるため、
+        // キーも新IDへ引き継ぐ。
+        if (expandedProps[tempId] !== undefined) {
+          expandedProps[created.id] = expandedProps[tempId];
+          delete expandedProps[tempId];
+        }
+      }
       if (onCreated) onCreated();
     }).catch(function (err) {
       setSyncStatus(errorMessage + "(" + (err && err.code) + ")", true);
