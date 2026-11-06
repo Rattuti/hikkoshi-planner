@@ -297,7 +297,7 @@
     <div class="row" id="expiredToggleRow" style="margin-top:8px; display:none;">
       <label class="row" style="gap:6px; font-size:0.85rem; color:var(--muted);">
         <input type="checkbox" id="showExpiredProps" style="width:auto; min-height:auto;">
-        <span id="expiredToggleLabel">募集終了の物件も表示する</span>
+        <span id="expiredToggleLabel">募集終了・掲載元なしの物件も表示する</span>
       </label>
     </div>
     <div class="table-wrap prop-table-wrap">
@@ -311,7 +311,7 @@
       </table>
     </div>
     <div class="empty" id="propEmpty">まだ候補物件が登録されていません</div>
-    <div class="empty" id="propHiddenNote" style="display:none;">登録済みの物件はすべて募集終了です(上のチェックを入れると表示されます)</div>
+    <div class="empty" id="propHiddenNote" style="display:none;">登録済みの物件はすべて募集終了か掲載元なしです(上のチェックを入れると表示されます)</div>
   </div>
 
   <div class="panel">
@@ -1450,12 +1450,13 @@
     var body = document.getElementById("propBody");
     body.innerHTML = "";
 
-    var isExpired = function (p) { return (p.tags || []).indexOf("募集終了") !== -1; };
+    // 「募集終了」(掲載終了を確認)と「掲載元なし」(掲載元のURLを確かめられない登録)は、標準では一覧から取り下げる
+    var isExpired = function (p) { var t = p.tags || []; return t.indexOf("募集終了") !== -1 || t.indexOf("掲載元なし") !== -1; };
     var expiredCount = state.properties.filter(isExpired).length;
     var toggleRow = document.getElementById("expiredToggleRow");
     var toggleCheckbox = document.getElementById("showExpiredProps");
     toggleRow.style.display = expiredCount ? "flex" : "none";
-    document.getElementById("expiredToggleLabel").textContent = "募集終了の物件も表示する(" + expiredCount + "件)";
+    document.getElementById("expiredToggleLabel").textContent = "募集終了・掲載元なしの物件も表示する(" + expiredCount + "件)";
     var visible = (toggleCheckbox && toggleCheckbox.checked) ? state.properties : state.properties.filter(function (p) { return !isExpired(p); });
 
     document.getElementById("propEmpty").style.display = state.properties.length ? "none" : "block";
@@ -1491,10 +1492,11 @@
       tdFav.appendChild(favBtn);
 
       var tdName = createNameCell(p.name);
-      if ((p.tags || []).indexOf("募集終了") !== -1) {
+      var hideTag = (p.tags || []).indexOf("募集終了") !== -1 ? "募集終了" : ((p.tags || []).indexOf("掲載元なし") !== -1 ? "掲載元なし" : "");
+      if (hideTag) {
         var expiredTag = document.createElement("span");
         expiredTag.className = "expired-tag";
-        expiredTag.textContent = "募集終了";
+        expiredTag.textContent = hideTag;
         tdName.appendChild(expiredTag);
       }
       var tdInfo = createPropertyInfoCell(p);
